@@ -34,7 +34,7 @@ func helloHandler(msg tebo.Message) string {
 Handle commands is like with http handlers:
 
 ```go
-bot.Handle("/hello", function(msg tebo.Message) string {
+bot.Handle("/hello", func(msg tebo.Message) string {
 	//
 	// your logic
 	//
