@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/fatih/structs"
 	"github.com/op/go-logging"
@@ -46,15 +45,6 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 	if err = b.readHistory(historyfile); err != nil {
 		return b, fmt.Errorf("history initialize failed: %v", err)
 	}
-
-	updates, err := b.loadUpdates()
-	if err != nil {
-		return b, fmt.Errorf("updates not loaded: %v", err)
-	}
-
-	b.route(updates)
-
-	go b.routing(10 * time.Second)
 
 	return
 }
@@ -170,14 +160,39 @@ func (b *Bot) GetUpdates(offset int) (updates []Update, err error) {
 }
 
 type ReqSendMessage struct {
-	ChatID    int    `json:"chat_id"`
-	Text      string `json:"text"`
-	ParseMode string `json:"parse_mode,omitempty"`
-	// ...
+	ChatID      int    `json:"chat_id"`
+	Text        string `json:"text"`
+	SendOptions `json:",omitempty"`
 }
 
-func (b *Bot) SendMessage(chatid int, text string) error {
-	return b.Request("sendMessage", ReqSendMessage{ChatID: chatid, Text: text}, nil)
+type SendOptions struct {
+	ParseMode string `json:"parse_mode,omitempty"`
+	// disable_web_page_preview
+	// disable_notification
+	// reply_to_message_id
+	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
+}
+
+// type ReplyMarkup struct {
+// 	InlineKeyboardMarkup
+// 	ReplyKeyboardMarkup
+// 	ReplyKeyboardRemove
+// 	ForceReply
+// }
+
+func (b *Bot) SendMessage(chatid int, text string, opt ...SendOptions) error {
+	msg := ReqSendMessage{ChatID: chatid, Text: text}
+	if len(opt) > 0 {
+		msg.SendOptions = opt[0]
+		// if msg.SendOptions.ReplyMarkup != nil {
+		// 	data, err := json.Marshal(msg.SendOptions.ReplyMarkup)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	msg.SendOptions.ReplyMarkup = string(data)
+		// }
+	}
+	return b.Request("sendMessage", msg, nil)
 }
 
 type ReqSendPhoto struct {

@@ -33,6 +33,42 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	PollInterval = 10 * time.Second
+
+	go bot.Start()
+}
+
+func TestInlineKeyboard(t *testing.T) {
+	if token == "" || chatid == 0 {
+		t.SkipNow()
+	}
+
+	opt := SendOptions{
+		ReplyMarkup: ReplyKeyboardMarkup{
+			Keboard: [][]KeyboardButton{
+				[]KeyboardButton{
+					KeyboardButton{Text: "1"},
+					KeyboardButton{Text: "2"},
+					KeyboardButton{Text: "3"},
+				},
+				[]KeyboardButton{
+					KeyboardButton{Text: "4"},
+					KeyboardButton{Text: "5"},
+					KeyboardButton{Text: "6"},
+				},
+				[]KeyboardButton{
+					KeyboardButton{Text: "7"},
+					KeyboardButton{Text: "8"},
+					KeyboardButton{Text: "9"},
+				},
+			},
+		},
+	}
+
+	if err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestRouting(t *testing.T) {
@@ -40,10 +76,10 @@ func TestRouting(t *testing.T) {
 		t.SkipNow()
 	}
 	bot.Handle("/start", func(m Message) string {
-		return fmt.Sprintf("Hello %s, ChatID: %d", m.From.Username, m.Chat.ID)
+		return fmt.Sprintf("Hello %s, ChatID: %d\nPassport: %+v", m.From.Username, m.Chat.ID, m.PassportData)
 	})
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(30 * time.Second)
 }
 
 func TestGetUpdates(t *testing.T) {

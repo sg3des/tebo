@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"runtime/debug"
-	"strings"
 	"time"
 )
+
+var PollInterval = 30 * time.Second
 
 type HandleFunc func(Message) string
 
@@ -34,25 +35,25 @@ func (b *Bot) Handle(cmd string, f HandleFunc, mid ...MiddlewareFunc) error {
 	return nil
 }
 
-func (b *Bot) routing(interval time.Duration) {
+func (b *Bot) Start() {
 	for {
-		time.Sleep(interval)
-
 		updates, err := b.loadUpdates()
 		if err != nil {
 			log.Error(err)
+		} else {
+			b.route(updates)
 		}
 
-		b.route(updates)
+		time.Sleep(PollInterval)
 	}
 }
 
 func (b *Bot) route(updates []Update) {
 	for _, u := range updates {
 		// smart check if incoming message is command
-		if !strings.HasPrefix(u.Message.Text, "/") {
-			continue
-		}
+		// if !strings.HasPrefix(u.Message.Text, "/") {
+		// 	continue
+		// }
 
 		if err := b.ExecuteHandler(u.Message); err != nil {
 			log.Error(err)
