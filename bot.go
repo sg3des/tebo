@@ -28,8 +28,9 @@ type Bot struct {
 
 	historyFile *os.File
 
-	handlers    []handler
-	middlewares []MiddlewareFunc
+	handlers        []handler
+	middlewares     []MiddlewareFunc
+	updatesHandlers []UpdatesHandleFunc
 }
 
 func NewBot(token, historyfile string) (b *Bot, err error) {

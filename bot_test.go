@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/op/go-logging"
 )
 
 var (
@@ -18,6 +20,11 @@ var (
 )
 
 func init() {
+	// logging.SetFormatter(logging.MustStringFormatter(
+	// 	`%{color}[%{module} %{shortfile}] %{message}%{color:reset}`,
+	// ))
+	logging.SetBackend(logging.NewLogBackend(os.Stderr, "", 0))
+
 	token = os.Getenv("TEST_TOKEN")
 	username = os.Getenv("TEST_USERNAME")
 	if _chatid := os.Getenv("TEST_CHATID"); _chatid != "" {
@@ -39,7 +46,7 @@ func init() {
 	go bot.Start()
 }
 
-func TestInlineKeyboard(t *testing.T) {
+func TestReplyKeyboard(t *testing.T) {
 	if token == "" || chatid == 0 {
 		t.SkipNow()
 	}
@@ -65,6 +72,41 @@ func TestInlineKeyboard(t *testing.T) {
 			},
 		},
 	}
+
+	if err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestInlineKeyboard(t *testing.T) {
+	if token == "" || chatid == 0 {
+		t.SkipNow()
+	}
+
+	opt := SendOptions{
+		ReplyMarkup: InlineKeyboardMarkup{
+			InlineKeyboard: [][]InlineKeyboardButton{
+				[]InlineKeyboardButton{
+					InlineKeyboardButton{Text: "text", URL: "https://github.com/sg3des/tebo"},
+					InlineKeyboardButton{
+						Text: "login",
+						LoginURL: &LoginURL{
+							URL: "http://45.76.39.223",
+						},
+						CallbackData: "some callback data",
+					},
+				},
+			},
+		},
+	}
+
+	bot.UpdatesHandle(func(u *Update) bool {
+		if u.CallbackQuery != nil {
+			log.Notice("TestInlineKeyboard, callback data:", u.CallbackQuery.Data)
+			return false
+		}
+		return true
+	})
 
 	if err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
 		t.Error(err)

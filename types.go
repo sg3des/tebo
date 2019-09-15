@@ -19,6 +19,8 @@ type User struct {
 type Update struct {
 	UpdateID int     `json:"update_id"`
 	Message  Message `json:"message"`
+
+	CallbackQuery *CallbackQuery `json:"callback_query,omitempty"`
 }
 
 type Message struct {
@@ -62,6 +64,16 @@ type Chat struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	// ...
+}
+
+type CallbackQuery struct {
+	ID              string   `json:"id"`
+	From            User     `json:"from"`
+	Message         *Message `json:"message,omitempty"`
+	InlineMessageID string   `json:"inline_message_id,omitempty"`
+	ChatInstance    string   `json:"chat_instance"`
+	Data            string   `json:"data,omitempty"`
+	GameShortName   string   `json:"game_short_name,omitempty"`
 }
 
 //

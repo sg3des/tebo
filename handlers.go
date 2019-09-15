@@ -49,11 +49,14 @@ func (b *Bot) Start() {
 }
 
 func (b *Bot) route(updates []Update) {
+UPDATES:
 	for _, u := range updates {
-		// smart check if incoming message is command
-		// if !strings.HasPrefix(u.Message.Text, "/") {
-		// 	continue
-		// }
+
+		for _, h := range b.updatesHandlers {
+			if pass := h(&u); !pass {
+				continue UPDATES
+			}
+		}
 
 		if err := b.ExecuteHandler(u.Message); err != nil {
 			log.Error(err)
@@ -127,4 +130,10 @@ type MiddlewareFunc func(next HandleFunc, msg Message) (HandleFunc, bool)
 // and before handler middlewares
 func (b *Bot) Pre(mid MiddlewareFunc) {
 	b.middlewares = append(b.middlewares, mid)
+}
+
+type UpdatesHandleFunc func(u *Update) bool
+
+func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
+	b.updatesHandlers = append(b.updatesHandlers, h)
 }
