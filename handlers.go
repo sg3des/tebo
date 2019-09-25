@@ -162,8 +162,8 @@ func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
 
 // ExpectAnswer wait next message intercept it if this message not a command
 // return false if next message is command
-func (b *Bot) ExpectAnswer(msg Message, text string, opt ...SendOptions) (answer Message, ok bool) {
-	if err := b.SendMessage(msg.Chat.ID, text, opt...); err != nil {
+func (b *Bot) ExpectAnswer(chatid int, text string, opt ...SendOptions) (answer Message, ok bool) {
+	if err := b.SendMessage(chatid, text, opt...); err != nil {
 		return
 	}
 

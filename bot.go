@@ -16,12 +16,17 @@ import (
 	"github.com/op/go-logging"
 )
 
-var addr = "https://api.telegram.org/bot%s/"
-var log = logging.MustGetLogger("TELEGRAM_BOT")
+var (
+	addr     = "https://api.telegram.org/bot%s/"
+	fileaddr = "https://api.telegram.org/file/bot%s/"
+	log      = logging.MustGetLogger("TELEGRAM_BOT")
+)
 
 type Bot struct {
 	User
-	addr string
+
+	addr     string
+	fileaddr string
 
 	Chats    []Chat
 	UpdateID int
@@ -38,7 +43,8 @@ type Bot struct {
 
 func NewBot(token, historyfile string) (b *Bot, err error) {
 	b = &Bot{
-		addr: fmt.Sprintf(addr, token),
+		addr:     fmt.Sprintf(addr, token),
+		fileaddr: fmt.Sprintf(fileaddr, token),
 	}
 
 	b.User, err = b.GetMe()
@@ -215,4 +221,44 @@ type ReqSendPhoto struct {
 
 func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string) error {
 	return b.FileRequest("sendPhoto", photo, ReqSendPhoto{ChatID: chatid, Caption: caption}, nil)
+}
+
+//
+// GetFile
+//
+
+func (b *Bot) GetFile(fileid string) (f File, err error) {
+	resp, err := http.Get(b.addr + "getFile?file_id=" + fileid)
+	if err != nil {
+		return f, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		// TODO: read error from response body
+		return f, errors.New(resp.Status)
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&f)
+	return
+}
+
+func (b *Bot) DownloadFile(filepath string, w io.Writer) error {
+	resp, err := http.Get(b.fileaddr + filepath)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(w, resp.Body)
+	return err
+}
+
+func (b *Bot) LoadFile(fileid string, w io.Writer) error {
+	f, err := b.GetFile(fileid)
+	if err != nil {
+		return err
+	}
+
+	return b.DownloadFile(f.FilePath, w)
 }

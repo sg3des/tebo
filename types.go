@@ -33,6 +33,11 @@ type Message struct {
 
 	// ...
 
+	Document *Document   `json:"document,omitempty"`
+	Photo    []PhotoSize `json:"photo,omitempty"`
+
+	// ...
+
 	ConnectedWebsite string                `json:"connected_website,omitempty"`
 	PassportData     *PassportData         `json:"passport_data,omitempty"`
 	ReplyMarkup      *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
@@ -74,6 +79,31 @@ type CallbackQuery struct {
 	ChatInstance    string   `json:"chat_instance"`
 	Data            string   `json:"data,omitempty"`
 	GameShortName   string   `json:"game_short_name,omitempty"`
+}
+
+//
+// Files
+//
+
+type File struct {
+	FileID   string `json:"file_id"`
+	FilePath string `json:"file_path"`
+	FileSize int    `json:"file_size"`
+}
+
+type Document struct {
+	FileID   string    `json:"file_id"`
+	Thumb    PhotoSize `json:"thumb,omitempty"`
+	FileName string    `json:"file_name,omitempty"`
+	MIMEType string    `json:"mime_type,omitempty"`
+	FileSize int       `json:"file_size,omitempty"`
+}
+
+type PhotoSize struct {
+	FileID   string `json:"file_id"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	FileSize int    `json:"file_size,omitempty"`
 }
 
 //
