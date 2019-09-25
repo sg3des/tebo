@@ -58,9 +58,31 @@ UPDATES:
 			}
 		}
 
-		if err := b.ExecuteHandler(u.Message); err != nil {
-			log.Error(err)
+		if len(u.Message.Text) == 0 {
+			continue
 		}
+
+		// if expect enable
+		if b.expect != nil && b.expectCancel != nil {
+			// if message is not command then send this message to expect channel
+			// and then do not lookup handler for this message
+			if u.Message.Text[0] != '/' {
+				b.expect <- u.Message
+				b.closeExpectChannels()
+				continue
+			} else {
+				// if message is command, started from '/', then cancel expect channels
+				// and lookup appropriate handler for this command
+				b.expectCancel <- true
+				b.closeExpectChannels()
+			}
+		}
+
+		go func(msg Message) {
+			if err := b.ExecuteHandler(msg); err != nil {
+				log.Error(err)
+			}
+		}(u.Message)
 	}
 }
 
@@ -97,10 +119,6 @@ func (b *Bot) ExecuteHandler(msg Message) (err error) {
 
 	// execute handler
 	resp := f(msg)
-	if resp == "" {
-		// if the response is empty, do nothing
-		return nil
-	}
 
 	// send a response to this chat
 	if err := b.SendMessage(msg.Chat.ID, resp); err != nil {
@@ -136,4 +154,36 @@ type UpdatesHandleFunc func(u *Update) bool
 
 func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
 	b.updatesHandlers = append(b.updatesHandlers, h)
+}
+
+//
+// Expect answer
+//
+
+// ExpectAnswer wait next message intercept it if this message not a command
+// return false if next message is command
+func (b *Bot) ExpectAnswer(msg Message, text string, opt ...SendOptions) (answer Message, ok bool) {
+	if err := b.SendMessage(msg.Chat.ID, text, opt...); err != nil {
+		return
+	}
+
+	b.expect = make(chan Message)
+	b.expectCancel = make(chan bool)
+
+	select {
+	case answer = <-b.expect:
+		ok = true
+	case <-b.expectCancel:
+		ok = false
+	}
+
+	return
+}
+
+func (b *Bot) closeExpectChannels() {
+	close(b.expect)
+	close(b.expectCancel)
+
+	b.expect = nil
+	b.expectCancel = nil
 }

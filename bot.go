@@ -31,6 +31,9 @@ type Bot struct {
 	handlers        []handler
 	middlewares     []MiddlewareFunc
 	updatesHandlers []UpdatesHandleFunc
+
+	expect       chan Message
+	expectCancel chan bool
 }
 
 func NewBot(token, historyfile string) (b *Bot, err error) {
@@ -50,11 +53,11 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 	return
 }
 
-func (b *Bot) LookupChatID(chatname string) (int, bool) {
-	chatname = strings.TrimPrefix(chatname, "@")
+func (b *Bot) LookupChatID(name string) (int, bool) {
+	name = strings.TrimPrefix(name, "@")
 
 	for _, chat := range b.Chats {
-		if chat.Username == chatname {
+		if chat.Username == name || chat.Title == name {
 			return chat.ID, true
 		}
 	}
@@ -91,7 +94,11 @@ func (b *Bot) Request(method string, payload, v interface{}) error {
 		return handleResponseError(resp)
 	}
 
+	// respBody, _ := ioutil.ReadAll(resp.Body)
+	// fmt.Println(string(respBody))
+
 	var r Response
+	// if err := json.Unmarshal(respBody, &r); err != nil {
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
 		return fmt.Errorf("response decode failed: %v", err)
 	}
@@ -182,6 +189,10 @@ type SendOptions struct {
 // }
 
 func (b *Bot) SendMessage(chatid int, text string, opt ...SendOptions) error {
+	if len(text) == 0 {
+		return nil
+	}
+
 	msg := ReqSendMessage{ChatID: chatid, Text: text}
 	if len(opt) > 0 {
 		msg.SendOptions = opt[0]
