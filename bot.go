@@ -37,7 +37,7 @@ type Bot struct {
 	middlewares     []MiddlewareFunc
 	updatesHandlers []UpdatesHandleFunc
 
-	expect       chan Message
+	expectUpdate chan Update
 	expectCancel chan bool
 }
 
@@ -179,6 +179,11 @@ type ReqSendMessage struct {
 	SendOptions `json:",omitempty"`
 }
 
+const (
+	ParseModeHTML     = "HTML"
+	ParseModeMarkdown = "Markdown"
+)
+
 type SendOptions struct {
 	ParseMode string `json:"parse_mode,omitempty"`
 	// disable_web_page_preview
@@ -194,23 +199,18 @@ type SendOptions struct {
 // 	ForceReply
 // }
 
-func (b *Bot) SendMessage(chatid int, text string, opt ...SendOptions) error {
+func (b *Bot) SendMessage(chatid int, text string, opt ...SendOptions) (msg Message, err error) {
 	if len(text) == 0 {
-		return nil
+		return
 	}
 
-	msg := ReqSendMessage{ChatID: chatid, Text: text}
+	reqmsg := ReqSendMessage{ChatID: chatid, Text: text}
 	if len(opt) > 0 {
-		msg.SendOptions = opt[0]
-		// if msg.SendOptions.ReplyMarkup != nil {
-		// 	data, err := json.Marshal(msg.SendOptions.ReplyMarkup)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	msg.SendOptions.ReplyMarkup = string(data)
-		// }
+		reqmsg.SendOptions = opt[0]
 	}
-	return b.Request("sendMessage", msg, nil)
+
+	err = b.Request("sendMessage", reqmsg, &msg)
+	return
 }
 
 type ReqSendPhoto struct {
@@ -221,6 +221,31 @@ type ReqSendPhoto struct {
 
 func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string) error {
 	return b.FileRequest("sendPhoto", photo, ReqSendPhoto{ChatID: chatid, Caption: caption}, nil)
+}
+
+//
+// EditMessage
+//
+
+type ReqEditMessage struct {
+	ChatID      int    `json:"chat_id"`
+	MessageID   int    `json:"message_id,omitempty"`
+	Text        string `json:"text"`
+	SendOptions `json:",omitempty"`
+}
+
+func (b *Bot) EditMessage(chatid int, messageid int, text string, opt ...SendOptions) (msg Message, err error) {
+	if len(text) == 0 {
+		return msg, errors.New("text is empty")
+	}
+
+	reqmsg := ReqEditMessage{ChatID: chatid, MessageID: messageid, Text: text}
+	if len(opt) > 0 {
+		reqmsg.SendOptions = opt[0]
+	}
+
+	err = b.Request("editMessageText", reqmsg, &msg)
+	return
 }
 
 //
@@ -261,4 +286,39 @@ func (b *Bot) LoadFile(fileid string, w io.Writer) error {
 	}
 
 	return b.DownloadFile(f.FilePath, w)
+}
+
+//
+// Keyboards
+//
+
+type InlineKeyboardConstuctor struct {
+	columns int
+
+	buttons []InlineKeyboardButton
+}
+
+func NewInlineKeyboard(columns int) *InlineKeyboardConstuctor {
+	return &InlineKeyboardConstuctor{columns: columns}
+}
+
+func (k *InlineKeyboardConstuctor) AddButton(text, data string) {
+	k.buttons = append(k.buttons, InlineKeyboardButton{
+		Text:         text,
+		CallbackData: data,
+	})
+}
+
+func (k *InlineKeyboardConstuctor) ToReplyMarkup() InlineKeyboardMarkup {
+	var keyboard [][]InlineKeyboardButton
+
+	for i := 0; i < len(k.buttons); i += k.columns {
+		line := make([]InlineKeyboardButton, 0, k.columns)
+		for j := i; j < i+k.columns && j < len(k.buttons); j++ {
+			line = append(line, k.buttons[j])
+		}
+		keyboard = append(keyboard, line)
+	}
+
+	return InlineKeyboardMarkup{keyboard}
 }

@@ -58,23 +58,21 @@ UPDATES:
 			}
 		}
 
-		if len(u.Message.Text) == 0 {
-			continue
-		}
-
 		// if expect enable
-		if b.expect != nil && b.expectCancel != nil {
-			// if message is not command then send this message to expect channel
-			// and then do not lookup handler for this message
-			if u.Message.Text[0] != '/' {
-				b.expect <- u.Message
-				b.closeExpectChannels()
-				continue
-			} else {
-				// if message is command, started from '/', then cancel expect channels
-				// and lookup appropriate handler for this command
+		if b.expectUpdate != nil && b.expectCancel != nil {
+			// if message is command, started from '/', then cancel expect channels
+			// and lookup appropriate handler for this command
+			if len(u.Message.Text) > 0 && u.Message.Text[0] == '/' {
 				b.expectCancel <- true
 				b.closeExpectChannels()
+			} else {
+
+				// if message is not command then send this message to expect channel
+				// and then do not lookup handler for this message
+				b.expectUpdate <- u
+				b.closeExpectChannels()
+				continue
+
 			}
 		}
 
@@ -83,6 +81,7 @@ UPDATES:
 				log.Error(err)
 			}
 		}(u.Message)
+
 	}
 }
 
@@ -121,7 +120,7 @@ func (b *Bot) ExecuteHandler(msg Message) (err error) {
 	resp := f(msg)
 
 	// send a response to this chat
-	if err := b.SendMessage(msg.Chat.ID, resp); err != nil {
+	if _, err := b.SendMessage(msg.Chat.ID, resp); err != nil {
 		return fmt.Errorf("failed send response: %v", err)
 	}
 
@@ -160,18 +159,14 @@ func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
 // Expect answer
 //
 
-// ExpectAnswer wait next message intercept it if this message not a command
+// ExpectAnswer wait next message, intercept it if this message not a command
 // return false if next message is command
-func (b *Bot) ExpectAnswer(chatid int, text string, opt ...SendOptions) (answer Message, ok bool) {
-	if err := b.SendMessage(chatid, text, opt...); err != nil {
-		return
-	}
-
-	b.expect = make(chan Message)
+func (b *Bot) ExpectAnswer(chatid int) (answer Update, ok bool) {
+	b.expectUpdate = make(chan Update)
 	b.expectCancel = make(chan bool)
 
 	select {
-	case answer = <-b.expect:
+	case answer = <-b.expectUpdate:
 		ok = true
 	case <-b.expectCancel:
 		ok = false
@@ -181,9 +176,9 @@ func (b *Bot) ExpectAnswer(chatid int, text string, opt ...SendOptions) (answer 
 }
 
 func (b *Bot) closeExpectChannels() {
-	close(b.expect)
+	close(b.expectUpdate)
 	close(b.expectCancel)
 
-	b.expect = nil
+	b.expectUpdate = nil
 	b.expectCancel = nil
 }
