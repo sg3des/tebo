@@ -264,8 +264,13 @@ func (b *Bot) GetFile(fileid string) (f File, err error) {
 		return f, errors.New(resp.Status)
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&f)
-	return
+	var respdata struct {
+		OK     bool
+		Result File
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&respdata)
+	return respdata.Result, err
 }
 
 func (b *Bot) DownloadFile(filepath string, w io.Writer) error {
@@ -275,17 +280,21 @@ func (b *Bot) DownloadFile(filepath string, w io.Writer) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return errors.New(resp.Status)
+	}
+
 	_, err = io.Copy(w, resp.Body)
 	return err
 }
 
-func (b *Bot) LoadFile(fileid string, w io.Writer) error {
+func (b *Bot) LoadFile(fileid string, w io.Writer) (File, error) {
 	f, err := b.GetFile(fileid)
 	if err != nil {
-		return err
+		return f, err
 	}
 
-	return b.DownloadFile(f.FilePath, w)
+	return f, b.DownloadFile(f.FilePath, w)
 }
 
 //
