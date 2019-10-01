@@ -331,3 +331,13 @@ func (k *InlineKeyboardConstuctor) ToReplyMarkup() InlineKeyboardMarkup {
 
 	return InlineKeyboardMarkup{keyboard}
 }
+
+func (k *InlineKeyboardConstuctor) GetButtonText(data string) (string, bool) {
+	for _, b := range k.buttons {
+		if b.CallbackData == data {
+			return b.Text, true
+		}
+	}
+
+	return "", false
+}
