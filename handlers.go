@@ -9,7 +9,7 @@ import (
 
 var PollInterval = 30 * time.Second
 
-type HandleFunc func(Message) string
+type HandleFunc func(*Context)
 
 type handler struct {
 	cmd         string
@@ -49,45 +49,47 @@ func (b *Bot) Start() {
 }
 
 func (b *Bot) route(updates []Update) {
-UPDATES:
 	for _, u := range updates {
-
-		for _, h := range b.updatesHandlers {
-			if pass := h(&u); !pass {
-				continue UPDATES
+		go func(u Update) {
+			ctx := &Context{
+				Bot:     b,
+				Update:  u,
+				Message: u.Message,
 			}
-		}
 
-		// if expect enable
-		if b.expectUpdate != nil && b.expectCancel != nil {
-			// if message is command, started from '/', then cancel expect channels
-			// and lookup appropriate handler for this command
-			if len(u.Message.Text) > 0 && u.Message.Text[0] == '/' {
-				b.expectCancel <- true
-				b.closeExpectChannels()
-			} else {
-
-				// if message is not command then send this message to expect channel
-				// and then do not lookup handler for this message
-				b.expectUpdate <- u
-				b.closeExpectChannels()
-				continue
-
+			for _, h := range b.updatesHandlers {
+				if pass := h(ctx); !pass {
+					return
+				}
 			}
-		}
 
-		go func(msg Message) {
-			if err := b.ExecuteHandler(msg); err != nil {
-				log.Error(err)
+			// if expect enable
+			if b.expectUpdate != nil && b.expectCancel != nil {
+				// if message is command, started from '/', then cancel expect channels
+				// and lookup appropriate handler for this command
+				if len(u.Message.Text) > 0 && u.Message.Text[0] == '/' {
+					b.expectCancel <- true
+					b.closeExpectChannels()
+				} else {
+
+					// if message is not command then send this message to expect channel
+					// and then do not lookup handler for this message
+					b.expectUpdate <- u
+					b.closeExpectChannels()
+					return
+				}
 			}
-		}(u.Message)
 
+			if err := b.ExecuteHandler(ctx); err != nil {
+				log.Error("failed to send response: ", err)
+			}
+		}(u)
 	}
 }
 
 // ExecuteHandler parse the incoming message text, lookup a suitable handler,
 // execute middlewares and send the reponse
-func (b *Bot) ExecuteHandler(msg Message) (err error) {
+func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = fmt.Errorf("%s\n%s", e, debug.Stack())
@@ -95,34 +97,29 @@ func (b *Bot) ExecuteHandler(msg Message) (err error) {
 	}()
 
 	// lookup a handler by the received command
-	h, ok := b.lookupHandler(msg.Text)
+	h, ok := b.lookupHandler(ctx.Text)
 	if !ok {
-		return fmt.Errorf("command %s, handler not found", msg.Text)
+		return fmt.Errorf("command %s, handler not found", ctx.Text)
 	}
 
 	f := h.callback
 
 	// execute global middlewares
 	for _, mid := range b.middlewares {
-		if f, ok = mid(f, msg); !ok {
+		if f, ok = mid(f, ctx); !ok {
 			return nil
 		}
 	}
 
 	// execute handler middlewares
 	for _, mid := range h.middlewares {
-		if f, ok = mid(f, msg); !ok {
+		if f, ok = mid(f, ctx); !ok {
 			return nil
 		}
 	}
 
 	// execute handler
-	resp := f(msg)
-
-	// send a response to this chat
-	if _, err := b.SendMessage(msg.Chat.ID, resp); err != nil {
-		return fmt.Errorf("failed send response: %v", err)
-	}
+	f(ctx)
 
 	return nil
 }
@@ -141,7 +138,7 @@ func (b *Bot) lookupHandler(cmd string) (handler, bool) {
 // PRE
 //
 
-type MiddlewareFunc func(next HandleFunc, msg Message) (HandleFunc, bool)
+type MiddlewareFunc func(next HandleFunc, ctx *Context) (HandleFunc, bool)
 
 // Pre method is add middleware function executed for all handlers
 // and before handler middlewares
@@ -149,7 +146,7 @@ func (b *Bot) Pre(mid MiddlewareFunc) {
 	b.middlewares = append(b.middlewares, mid)
 }
 
-type UpdatesHandleFunc func(u *Update) bool
+type UpdatesHandleFunc func(ctx *Context) bool
 
 func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
 	b.updatesHandlers = append(b.updatesHandlers, h)
@@ -181,4 +178,20 @@ func (b *Bot) closeExpectChannels() {
 
 	b.expectUpdate = nil
 	b.expectCancel = nil
+}
+
+//
+// Context
+//
+
+// Context argument for handlers
+type Context struct {
+	Bot *Bot
+
+	Update
+	Message
+}
+
+func (ctx *Context) SendMessage(text string, opt ...SendOptions) (Message, error) {
+	return ctx.Bot.SendMessage(ctx.Chat.ID, text, opt...)
 }

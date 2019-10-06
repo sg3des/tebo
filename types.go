@@ -128,6 +128,22 @@ type EncryptedPassportElement struct {
 	Hash        []byte         `json:"hash"`
 }
 
+const (
+	PassportElemType_PersonalDetails       = "personal_details"
+	PassportElemType_Passport              = "passport"
+	PassportElemType_DriverLicense         = "driver_license"
+	PassportElemType_IdentityCard          = "identity_card"
+	PassportElemType_InternalPassport      = "internal_passport"
+	PassportElemType_Address               = "address"
+	PassportElemType_UtilityBill           = "utility_bill"
+	PassportElemType_BankStatement         = "bank_statement"
+	PassportElemType_RentalAgreement       = "rental_agreement"
+	PassportElemType_PassportRegistration  = "passport_registration"
+	PassportElemType_TemporaryRegistration = "temporary_registration"
+	PassportElemType_PhoneNumber           = "phone_number"
+	PassportElemType_Email                 = "email"
+)
+
 type PassportFile struct {
 	FileID   string `json:"file_id"`
 	FileSize int64  `json:"file_size"`
