@@ -9,8 +9,8 @@ type chat struct {
 	ID       int
 	Username string
 
-	// lastMessageIsBot bool
-	// editMessageID    int
+	lastMessageIsBot bool
+	editMessageID    int
 
 	expectContext chan *Context
 	expectCancel  chan bool
@@ -56,6 +56,8 @@ func (c *chats) LookupByName(name string) (*chat, bool) {
 // ExpectAnswer wait next message, intercept it if this message not a command
 // return false if next message is command
 func (c *chat) ExpectAnswer() (ctx *Context, ok bool) {
+	c.lastMessageIsBot = false
+
 	c.expectContext = make(chan *Context)
 	c.expectCancel = make(chan bool)
 
@@ -75,4 +77,9 @@ func (c *chat) closeExpectChannels() {
 
 	c.expectContext = nil
 	c.expectCancel = nil
+}
+
+func (c *chat) setEditMessageID(msgid int) {
+	c.editMessageID = msgid
+	c.lastMessageIsBot = true
 }

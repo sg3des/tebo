@@ -26,15 +26,29 @@ func NewFSM(h HandleFunc) *FSM {
 	return fsm
 }
 
+type FSMButtonBuilder func(ctx *Context) *InlineKeyboardButton
+
 type fsmButton struct {
-	Text string
+	text string
+	f    FSMButtonBuilder
 	fsm  *FSM
 }
 
 func (fsm *FSM) Add(text string, h HandleFunc) *FSM {
 	btn := &fsmButton{
-		Text: text,
+		text: text,
 		fsm:  fsm.newState(h),
+	}
+
+	fsm.buttons = append(fsm.buttons, btn)
+
+	return btn.fsm
+}
+
+func (fsm *FSM) AddFunc(f FSMButtonBuilder, h HandleFunc) *FSM {
+	btn := &fsmButton{
+		f:   f,
+		fsm: fsm.newState(h),
 	}
 
 	fsm.buttons = append(fsm.buttons, btn)
@@ -54,6 +68,10 @@ func (fsm *FSM) nextID() string {
 	return fmt.Sprintf("%s%c", fsm.id, letters[len(fsm.buttons)])
 }
 
+func (fsm *FSM) newID(n int) string {
+	return fmt.Sprintf("%s%c", fsm.id, letters[n])
+}
+
 func (fsm *FSM) handle(ctx *Context) (err error) {
 	ctx.chat.fsm = fsm.root
 
@@ -68,26 +86,29 @@ func (fsm *FSM) handle(ctx *Context) (err error) {
 		return fmt.Errorf("state by id:%s not found", id)
 	}
 
-	// smsg := fsm.message(ctx)
-	// if ctx.chat.lastMessageIsBot {
-	// 	_, err = ctx.editMessage(ctx.chat.editMessageID, smsg)
-	// } else {
-	// 	_, err = ctx.sendMessage(smsg)
-	// }
-
-	_, err = ctx.sendMessage(fsm.message(ctx))
-
-	return err
-}
-
-func (fsm *FSM) initialMessage(ctx *Context) error {
-	_, err := ctx.sendMessage(fsm.message(ctx))
+	var msg Message
+	smsg := fsm.message(ctx)
+	if ctx.chat.lastMessageIsBot {
+		msg, err = ctx.Edit(ctx.chat.editMessageID, smsg)
+	} else {
+		msg, err = ctx.Send(smsg)
+	}
 	if err != nil {
 		return err
 	}
 
-	// ctx.chat.editMessageID = msg.MessageID
-	// ctx.chat.lastMessageIsBot = true
+	ctx.chat.setEditMessageID(msg.MessageID)
+
+	return nil
+}
+
+func (fsm *FSM) initialMessage(ctx *Context) error {
+	msg, err := ctx.Send(fsm.message(ctx))
+	if err != nil {
+		return err
+	}
+
+	ctx.chat.setEditMessageID(msg.MessageID)
 
 	return nil
 }
@@ -112,21 +133,39 @@ func (fsm *FSM) lookupState(id string) (*FSM, bool) {
 func (fsm *FSM) message(ctx *Context) *SendMessage {
 	smsg := fsm.handler(ctx)
 	if smsg.ReplyMarkup == nil {
-		smsg.ReplyMarkup = fsm.keyboard()
+		smsg.ReplyMarkup = fsm.keyboard(ctx)
+	} else {
+		var i int
+		markup := smsg.ReplyMarkup.(InlineKeyboardMarkup)
+		for _, row := range markup.InlineKeyboard {
+			for _, btn := range row {
+				btn.CallbackData = fsm.newID(i)
+				i++
+			}
+		}
 	}
 
 	return smsg
 }
 
-func (fsm *FSM) keyboard() *InlineKeyboardMarkup {
-	// if len(fsm.buttons) == 0 {
-	// 	return nil
-	// }
-
+func (fsm *FSM) keyboard(ctx *Context) *InlineKeyboardMarkup {
 	keyboard := NewInlineKeyboard(2)
 	for _, btn := range fsm.buttons {
-		keyboard.AddButton(btn.Text, btn.fsm.id)
+		if btn.f != nil {
+			b := btn.f(ctx)
+			if b == nil {
+				continue
+			}
+			if b.CallbackData == "" {
+				b.CallbackData = btn.fsm.id
+			}
+
+			keyboard.Add(*b)
+		} else {
+			keyboard.AddButton(btn.text, btn.fsm.id)
+		}
 	}
+
 	if fsm.id != fsmrootid {
 		keyboard.AddButton("« Back", fsm.id[:len(fsm.id)-1])
 	}
@@ -138,6 +177,6 @@ func (fsm *FSM) NewMessage(ctx *Context, text string, opt ...SendOptions) *SendM
 	ctx.chat.fsm = fsm
 
 	smsg := ctx.NewMessage(text, opt...)
-	smsg.ReplyMarkup = fsm.keyboard()
+	smsg.ReplyMarkup = fsm.keyboard(ctx)
 	return smsg
 }

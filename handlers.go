@@ -78,8 +78,6 @@ func (b *Bot) route(updates []Update) {
 				}
 			}
 
-			log.Debug(ctx.chat.fsm, u.Message.Text)
-
 			if ctx.chat.fsm != nil {
 				if _, ok := u.Message.BotCommand(); !ok {
 					if err := ctx.chat.fsm.handle(ctx); err != nil {
@@ -133,7 +131,7 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 		return nil
 	}
 
-	_, err = ctx.sendMessage(smsg)
+	_, err = ctx.Send(smsg)
 	return err
 }
 
@@ -192,19 +190,30 @@ func (b *Bot) newContext(u Update) *Context {
 
 	ctx.chat = b.chats.Get(ctx.Message)
 
+	if u.CallbackQuery != nil {
+		ctx.chat.setEditMessageID(u.CallbackQuery.Message.MessageID)
+	}
+
 	return ctx
 }
 
-func (ctx *Context) sendMessage(smsg *SendMessage) (Message, error) {
-	return ctx.Bot.SendMessage(ctx.Chat.ID, smsg)
+func (ctx *Context) Send(smsg *SendMessage) (Message, error) {
+	msg, err := ctx.Bot.SendMessage(ctx.Chat.ID, smsg)
+	if err != nil {
+		return msg, err
+	}
+
+	ctx.chat.setEditMessageID(msg.MessageID)
+
+	return msg, err
 }
 
-func (ctx *Context) editMessage(messageid int, smsg *SendMessage) (Message, error) {
+func (ctx *Context) Edit(messageid int, smsg *SendMessage) (Message, error) {
 	return ctx.Bot.EditMessage(ctx.Chat.ID, messageid, smsg)
 }
 
 func (ctx *Context) SendMessage(text string, opt ...SendOptions) (Message, error) {
-	return ctx.sendMessage(ctx.NewMessage(text, opt...))
+	return ctx.Send(ctx.NewMessage(text, opt...))
 }
 
 func (ctx *Context) ExpectAnswer() (*Context, bool) {

@@ -88,7 +88,7 @@ func (b *Bot) Request(method string, payload, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	// log.Debug(resp.Dump())
+
 	if r := resp.Response(); r.StatusCode >= 400 {
 		err := &ErrorResponse{Status: r.Status}
 		resp.ToJSON(err)
@@ -302,6 +302,10 @@ func (k *InlineKeyboardConstuctor) AddButton(text, data string) {
 		Text:         text,
 		CallbackData: data,
 	})
+}
+
+func (k *InlineKeyboardConstuctor) Add(btn InlineKeyboardButton) {
+	k.buttons = append(k.buttons, btn)
 }
 
 func (k *InlineKeyboardConstuctor) ToReplyMarkup() *InlineKeyboardMarkup {
