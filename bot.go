@@ -10,9 +10,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/fatih/structs"
+	"github.com/imroc/req"
 	"github.com/op/go-logging"
 )
 
@@ -28,7 +28,7 @@ type Bot struct {
 	addr     string
 	fileaddr string
 
-	Chats    []Chat
+	// Chats    []Chat
 	UpdateID int
 
 	historyFile *os.File
@@ -37,14 +37,17 @@ type Bot struct {
 	middlewares     []MiddlewareFunc
 	updatesHandlers []UpdatesHandleFunc
 
-	expectUpdate chan Update
-	expectCancel chan bool
+	chats *chats
+
+	// expectContext chan *Context
+	// expectCancel  chan bool
 }
 
 func NewBot(token, historyfile string) (b *Bot, err error) {
 	b = &Bot{
 		addr:     fmt.Sprintf(addr, token),
 		fileaddr: fmt.Sprintf(fileaddr, token),
+		chats:    new(chats),
 	}
 
 	b.User, err = b.GetMe()
@@ -60,18 +63,17 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 }
 
 func (b *Bot) LookupChatID(name string) (int, bool) {
-	name = strings.TrimPrefix(name, "@")
-
-	for _, chat := range b.Chats {
-		if chat.Username == name || chat.Title == name {
-			return chat.ID, true
-		}
+	ch, ok := b.chats.LookupByName(name)
+	if !ok {
+		return 0, false
 	}
 
-	return 0, false
+	return ch.ID, true
 }
 
 type ErrorResponse struct {
+	Status string `json:"-"`
+
 	Ok          bool   `json:"ok"`
 	ErrorCode   int    `json:"error_code"`
 	Description string `json:"description"`
@@ -82,46 +84,27 @@ func (e *ErrorResponse) Error() string {
 }
 
 func (b *Bot) Request(method string, payload, v interface{}) error {
-	var body bytes.Buffer
-	if payload != nil {
-		err := json.NewEncoder(&body).Encode(payload)
-		if err != nil {
-			return fmt.Errorf("payload encode failed: %v", err)
-		}
-	}
-
-	resp, err := http.Post(b.addr+method, "application/json", &body)
+	resp, err := req.Post(b.addr+method, req.BodyJSON(payload))
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleResponseError(resp)
+	// log.Debug(resp.Dump())
+	if r := resp.Response(); r.StatusCode >= 400 {
+		err := &ErrorResponse{Status: r.Status}
+		resp.ToJSON(err)
+		return err
 	}
 
-	// respBody, _ := ioutil.ReadAll(resp.Body)
-	// fmt.Println(string(respBody))
+	if v == nil {
+		return nil
+	}
 
 	var r Response
-	// if err := json.Unmarshal(respBody, &r); err != nil {
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return fmt.Errorf("response decode failed: %v", err)
+	if err := resp.ToJSON(&r); err != nil {
+		return err
 	}
 
 	return json.Unmarshal(r.Result, &v)
-}
-
-func handleResponseError(resp *http.Response) error {
-	data, _ := ioutil.ReadAll(resp.Body)
-
-	var err ErrorResponse
-	json.Unmarshal(data, &err)
-	if err.Description != "" {
-		return &err
-	}
-
-	return fmt.Errorf("%s: %s", resp.Status, string(data))
 }
 
 func (b *Bot) FileRequest(method string, file io.Reader, payload interface{}, v interface{}) error {
@@ -174,7 +157,11 @@ func (b *Bot) GetUpdates(offset int) (updates []Update, err error) {
 }
 
 type ReqSendMessage struct {
-	ChatID      int    `json:"chat_id"`
+	ChatID int `json:"chat_id"`
+	SendMessage
+}
+
+type SendMessage struct {
 	Text        string `json:"text"`
 	SendOptions `json:",omitempty"`
 }
@@ -199,17 +186,21 @@ type SendOptions struct {
 // 	ForceReply
 // }
 
-func (b *Bot) SendMessage(chatid int, text string, opt ...SendOptions) (msg Message, err error) {
-	if len(text) == 0 {
+func NewMessage(text string, opt ...SendOptions) *SendMessage {
+	msg := &SendMessage{Text: text}
+	if len(opt) > 0 {
+		msg.SendOptions = opt[0]
+	}
+
+	return msg
+}
+
+func (b *Bot) SendMessage(chatid int, smsg *SendMessage) (msg Message, err error) {
+	if len(smsg.Text) == 0 {
 		return
 	}
 
-	reqmsg := ReqSendMessage{ChatID: chatid, Text: text}
-	if len(opt) > 0 {
-		reqmsg.SendOptions = opt[0]
-	}
-
-	err = b.Request("sendMessage", reqmsg, &msg)
+	err = b.Request("sendMessage", ReqSendMessage{ChatID: chatid, SendMessage: *smsg}, &msg)
 	return
 }
 
@@ -228,22 +219,17 @@ func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string) error {
 //
 
 type ReqEditMessage struct {
-	ChatID      int    `json:"chat_id"`
-	MessageID   int    `json:"message_id,omitempty"`
-	Text        string `json:"text"`
-	SendOptions `json:",omitempty"`
+	ChatID    int `json:"chat_id"`
+	MessageID int `json:"message_id,omitempty"`
+	SendMessage
 }
 
-func (b *Bot) EditMessage(chatid int, messageid int, text string, opt ...SendOptions) (msg Message, err error) {
-	if len(text) == 0 {
+func (b *Bot) EditMessage(chatid int, messageid int, smsg *SendMessage) (msg Message, err error) {
+	if len(smsg.Text) == 0 {
 		return msg, errors.New("text is empty")
 	}
 
-	reqmsg := ReqEditMessage{ChatID: chatid, MessageID: messageid, Text: text}
-	if len(opt) > 0 {
-		reqmsg.SendOptions = opt[0]
-	}
-
+	reqmsg := ReqEditMessage{ChatID: chatid, MessageID: messageid, SendMessage: *smsg}
 	err = b.Request("editMessageText", reqmsg, &msg)
 	return
 }
@@ -318,7 +304,7 @@ func (k *InlineKeyboardConstuctor) AddButton(text, data string) {
 	})
 }
 
-func (k *InlineKeyboardConstuctor) ToReplyMarkup() InlineKeyboardMarkup {
+func (k *InlineKeyboardConstuctor) ToReplyMarkup() *InlineKeyboardMarkup {
 	var keyboard [][]InlineKeyboardButton
 
 	for i := 0; i < len(k.buttons); i += k.columns {
@@ -329,7 +315,7 @@ func (k *InlineKeyboardConstuctor) ToReplyMarkup() InlineKeyboardMarkup {
 		keyboard = append(keyboard, line)
 	}
 
-	return InlineKeyboardMarkup{keyboard}
+	return &InlineKeyboardMarkup{keyboard}
 }
 
 func (k *InlineKeyboardConstuctor) GetButtonText(data string) (string, bool) {

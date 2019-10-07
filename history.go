@@ -8,14 +8,12 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func (b *Bot) addChat(chat Chat) {
-	for _, c := range b.Chats {
-		if c.ID == chat.ID {
-			return
-		}
+func (b *Bot) addChat(u Update) {
+	if u.CallbackQuery != nil {
+		b.chats.Get(u.CallbackQuery.Message)
+	} else {
+		b.chats.Get(u.Message)
 	}
-
-	b.Chats = append(b.Chats, chat)
 }
 
 func (b *Bot) readHistory(filename string) (err error) {
@@ -36,7 +34,7 @@ func (b *Bot) readHistory(filename string) (err error) {
 			b.UpdateID = u.UpdateID
 		}
 
-		b.addChat(u.Message.Chat)
+		b.addChat(u)
 	}
 
 	return nil
@@ -48,7 +46,7 @@ func (b *Bot) updateHistory(updates []Update) error {
 			b.UpdateID = u.UpdateID
 		}
 
-		b.addChat(u.Message.Chat)
+		b.addChat(u)
 
 		line, err := msgpack.Marshal(u)
 		if err != nil {

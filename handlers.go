@@ -9,7 +9,7 @@ import (
 
 var PollInterval = 30 * time.Second
 
-type HandleFunc func(*Context)
+type HandleFunc func(*Context) *SendMessage
 
 type handler struct {
 	cmd         string
@@ -50,12 +50,10 @@ func (b *Bot) Start() {
 
 func (b *Bot) route(updates []Update) {
 	for _, u := range updates {
+		log.Debugf("%+v", u)
+
 		go func(u Update) {
-			ctx := &Context{
-				Bot:     b,
-				Update:  u,
-				Message: u.Message,
-			}
+			ctx := b.newContext(u)
 
 			for _, h := range b.updatesHandlers {
 				if pass := h(ctx); !pass {
@@ -64,24 +62,35 @@ func (b *Bot) route(updates []Update) {
 			}
 
 			// if expect enable
-			if b.expectUpdate != nil && b.expectCancel != nil {
+			if ctx.chat.expectContext != nil && ctx.chat.expectCancel != nil {
 				// if message is command, started from '/', then cancel expect channels
 				// and lookup appropriate handler for this command
 				if len(u.Message.Text) > 0 && u.Message.Text[0] == '/' {
-					b.expectCancel <- true
-					b.closeExpectChannels()
+					ctx.chat.expectCancel <- true
+					ctx.chat.closeExpectChannels()
 				} else {
 
 					// if message is not command then send this message to expect channel
 					// and then do not lookup handler for this message
-					b.expectUpdate <- u
-					b.closeExpectChannels()
+					ctx.chat.expectContext <- ctx
+					ctx.chat.closeExpectChannels()
+					return
+				}
+			}
+
+			log.Debug(ctx.chat.fsm, u.Message.Text)
+
+			if ctx.chat.fsm != nil {
+				if _, ok := u.Message.BotCommand(); !ok {
+					if err := ctx.chat.fsm.handle(ctx); err != nil {
+						log.Error("fsm error:", err)
+					}
 					return
 				}
 			}
 
 			if err := b.ExecuteHandler(ctx); err != nil {
-				log.Error("failed to send response: ", err)
+				log.Error("failed to send response:", err)
 			}
 		}(u)
 	}
@@ -97,7 +106,7 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	}()
 
 	// lookup a handler by the received command
-	h, ok := b.lookupHandler(ctx.Text)
+	h, ok := b.lookupHandler(ctx.Message.Text)
 	if !ok {
 		return fmt.Errorf("command %s, handler not found", ctx.Text)
 	}
@@ -119,9 +128,13 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	}
 
 	// execute handler
-	f(ctx)
+	smsg := f(ctx)
+	if smsg == nil {
+		return nil
+	}
 
-	return nil
+	_, err = ctx.sendMessage(smsg)
+	return err
 }
 
 func (b *Bot) lookupHandler(cmd string) (handler, bool) {
@@ -153,34 +166,6 @@ func (b *Bot) UpdatesHandle(h UpdatesHandleFunc) {
 }
 
 //
-// Expect answer
-//
-
-// ExpectAnswer wait next message, intercept it if this message not a command
-// return false if next message is command
-func (b *Bot) ExpectAnswer(chatid int) (answer Update, ok bool) {
-	b.expectUpdate = make(chan Update)
-	b.expectCancel = make(chan bool)
-
-	select {
-	case answer = <-b.expectUpdate:
-		ok = true
-	case <-b.expectCancel:
-		ok = false
-	}
-
-	return
-}
-
-func (b *Bot) closeExpectChannels() {
-	close(b.expectUpdate)
-	close(b.expectCancel)
-
-	b.expectUpdate = nil
-	b.expectCancel = nil
-}
-
-//
 // Context
 //
 
@@ -190,8 +175,42 @@ type Context struct {
 
 	Update
 	Message
+
+	chat *chat
+}
+
+func (b *Bot) newContext(u Update) *Context {
+	ctx := &Context{
+		Bot:     b,
+		Update:  u,
+		Message: u.Message,
+	}
+
+	if u.CallbackQuery != nil {
+		ctx.Message = u.CallbackQuery.Message
+	}
+
+	ctx.chat = b.chats.Get(ctx.Message)
+
+	return ctx
+}
+
+func (ctx *Context) sendMessage(smsg *SendMessage) (Message, error) {
+	return ctx.Bot.SendMessage(ctx.Chat.ID, smsg)
+}
+
+func (ctx *Context) editMessage(messageid int, smsg *SendMessage) (Message, error) {
+	return ctx.Bot.EditMessage(ctx.Chat.ID, messageid, smsg)
 }
 
 func (ctx *Context) SendMessage(text string, opt ...SendOptions) (Message, error) {
-	return ctx.Bot.SendMessage(ctx.Chat.ID, text, opt...)
+	return ctx.sendMessage(ctx.NewMessage(text, opt...))
+}
+
+func (ctx *Context) ExpectAnswer() (*Context, bool) {
+	return ctx.chat.ExpectAnswer()
+}
+
+func (ctx *Context) NewMessage(text string, opt ...SendOptions) *SendMessage {
+	return NewMessage(text, opt...)
 }
