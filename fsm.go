@@ -10,7 +10,9 @@ const fsmrootid = "."
 type FSM struct {
 	id      string
 	handler HandleFunc
+
 	buttons []*fsmButton
+	columns int
 
 	root *FSM
 }
@@ -19,6 +21,7 @@ func NewFSM(h HandleFunc) *FSM {
 	fsm := &FSM{
 		handler: h,
 		id:      fsmrootid,
+		columns: 1,
 	}
 
 	fsm.root = fsm
@@ -56,11 +59,20 @@ func (fsm *FSM) AddFunc(f FSMButtonBuilder, h HandleFunc) *FSM {
 	return btn.fsm
 }
 
+func (fsm *FSM) Columns(n int) {
+	if n < 1 {
+		return
+	}
+
+	fsm.columns = n
+}
+
 func (fsm *FSM) newState(h HandleFunc) *FSM {
 	return &FSM{
 		id:      fsm.nextID(),
 		handler: h,
 		root:    fsm.root,
+		columns: 2,
 	}
 }
 
@@ -86,8 +98,12 @@ func (fsm *FSM) handle(ctx *Context) (err error) {
 		return fmt.Errorf("state by id:%s not found", id)
 	}
 
-	var msg Message
 	smsg := fsm.message(ctx)
+	if smsg == nil {
+		return nil
+	}
+
+	var msg Message
 	if ctx.chat.lastMessageIsBot {
 		msg, err = ctx.Edit(ctx.chat.editMessageID, smsg)
 	} else {
@@ -113,6 +129,14 @@ func (fsm *FSM) initialMessage(ctx *Context) error {
 	return nil
 }
 
+func (fsm *FSM) State(ctx *Context) (*FSM, bool) {
+	if ctx.CallbackQuery == nil {
+		return nil, false
+	}
+
+	return fsm.root.lookupState(ctx.CallbackQuery.Data)
+}
+
 func (fsm *FSM) lookupState(id string) (*FSM, bool) {
 	if id == fsmrootid {
 		return fsm.root, true
@@ -130,13 +154,39 @@ func (fsm *FSM) lookupState(id string) (*FSM, bool) {
 	return nil, false
 }
 
+func (fsm *FSM) Parent() *FSM {
+	if fsm.id == fsmrootid {
+		return fsm
+	}
+
+	fsm, ok := fsm.root.lookupState(fsm.ParentID())
+	if !ok {
+		log.Criticalf("parent state by id %s not found", fsm.ParentID())
+		return fsm.root
+	}
+
+	return fsm
+}
+
+func (fsm *FSM) ParentID() string {
+	if len(fsm.id) <= 1 {
+		return fsm.id
+	}
+
+	return fsm.id[:len(fsm.id)-1]
+}
+
 func (fsm *FSM) message(ctx *Context) *SendMessage {
 	smsg := fsm.handler(ctx)
+	if smsg == nil {
+		return fsm.Parent().message(ctx)
+	}
+
 	if smsg.ReplyMarkup == nil {
 		smsg.ReplyMarkup = fsm.keyboard(ctx)
 	} else {
 		var i int
-		markup := smsg.ReplyMarkup.(InlineKeyboardMarkup)
+		markup := smsg.ReplyMarkup.(*InlineKeyboardMarkup)
 		for _, row := range markup.InlineKeyboard {
 			for _, btn := range row {
 				btn.CallbackData = fsm.newID(i)
@@ -149,7 +199,7 @@ func (fsm *FSM) message(ctx *Context) *SendMessage {
 }
 
 func (fsm *FSM) keyboard(ctx *Context) *InlineKeyboardMarkup {
-	keyboard := NewInlineKeyboard(2)
+	keyboard := NewInlineKeyboard(fsm.columns)
 	for _, btn := range fsm.buttons {
 		if btn.f != nil {
 			b := btn.f(ctx)
@@ -171,6 +221,10 @@ func (fsm *FSM) keyboard(ctx *Context) *InlineKeyboardMarkup {
 	}
 
 	return keyboard.ToReplyMarkup()
+}
+
+func (fsm *FSM) Button(text string) InlineKeyboardButton {
+	return InlineKeyboardButton{Text: text, CallbackData: fsm.id}
 }
 
 func (fsm *FSM) NewMessage(ctx *Context, text string, opt ...SendOptions) *SendMessage {

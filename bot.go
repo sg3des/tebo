@@ -35,7 +35,7 @@ type Bot struct {
 
 	handlers        []handler
 	middlewares     []MiddlewareFunc
-	updatesHandlers []UpdatesHandleFunc
+	updatesHandlers []UpdatesFunc
 
 	chats *chats
 
