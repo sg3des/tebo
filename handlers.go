@@ -198,7 +198,7 @@ func (b *Bot) newContext(u Update) *Context {
 		ctx.Message = u.CallbackQuery.Message
 	}
 
-	ctx.chat = b.chats.Get(ctx.Message)
+	ctx.chat = b.Chats.Get(ctx.Message)
 
 	if u.CallbackQuery != nil {
 		ctx.chat.setEditMessageID(u.CallbackQuery.Message.MessageID)

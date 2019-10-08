@@ -10,9 +10,9 @@ import (
 
 func (b *Bot) addChat(u Update) {
 	if u.CallbackQuery != nil {
-		b.chats.Get(u.CallbackQuery.Message)
+		b.Chats.Get(u.CallbackQuery.Message)
 	} else {
-		b.chats.Get(u.Message)
+		b.Chats.Get(u.Message)
 	}
 }
 

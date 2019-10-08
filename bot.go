@@ -37,7 +37,7 @@ type Bot struct {
 	middlewares     []MiddlewareFunc
 	updatesHandlers []UpdatesFunc
 
-	chats *chats
+	Chats *chats
 
 	// expectContext chan *Context
 	// expectCancel  chan bool
@@ -47,7 +47,7 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 	b = &Bot{
 		addr:     fmt.Sprintf(addr, token),
 		fileaddr: fmt.Sprintf(fileaddr, token),
-		chats:    new(chats),
+		Chats:    new(chats),
 	}
 
 	b.User, err = b.GetMe()
@@ -63,7 +63,7 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 }
 
 func (b *Bot) LookupChatID(name string) (int, bool) {
-	ch, ok := b.chats.LookupByName(name)
+	ch, ok := b.Chats.LookupByName(name)
 	if !ok {
 		return 0, false
 	}

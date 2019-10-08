@@ -53,6 +53,13 @@ func (c *chats) LookupByName(name string) (*chat, bool) {
 	return ch.(*chat), true
 }
 
+func (c *chats) Range(f func(id int, username string) bool) {
+	c.chats.Range(func(_, val interface{}) bool {
+		ch := val.(*chat)
+		return f(ch.ID, ch.Username)
+	})
+}
+
 // ExpectAnswer wait next message, intercept it if this message not a command
 // return false if next message is command
 func (c *chat) ExpectAnswer() (ctx *Context, ok bool) {
