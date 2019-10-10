@@ -231,8 +231,8 @@ func (ctx *Context) SendMessage(text string, opt ...SendOptions) (int, error) {
 }
 
 // SendTextMessage with formating text
-func (ctx *Context) SendTextMessage(text string, args ...interface{}) (int, error) {
-	return ctx.Send(ctx.NewMessage(fmt.Sprintf(text, args...)))
+func (ctx *Context) SendTextMessage(text string, a ...interface{}) (int, error) {
+	return ctx.Send(ctx.NewMessage(fmt.Sprintf(text, a...)))
 }
 
 func (ctx *Context) EditMessage(messageid int, text string, opt ...SendOptions) error {
@@ -247,6 +247,10 @@ func (ctx *Context) ExpectAnswer() (*Context, bool) {
 
 func (ctx *Context) NewMessage(text string, opt ...SendOptions) *SendMessage {
 	return NewMessage(text, opt...)
+}
+
+func (ctx *Context) NewTextMessage(text string, a ...interface{}) *SendMessage {
+	return NewMessage(fmt.Sprintf(text, a...))
 }
 
 func (ctx *Context) EditOrSendMessage(text string, opt ...SendOptions) (int, error) {

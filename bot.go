@@ -205,7 +205,7 @@ func (b *Bot) SendMessage(chatid int, smsg *SendMessage) (msgid int, err error) 
 	return msg.MessageID, err
 }
 
-func (b *Bot) SendTextMessage(chatid int, text string, args ...interface{}) (msgid int, err error) {
+func (b *Bot) SendTextMessage(chatid int, text string, a ...interface{}) (msgid int, err error) {
 	if len(text) == 0 {
 		return 0, errors.New("text is empty")
 	}
@@ -214,7 +214,7 @@ func (b *Bot) SendTextMessage(chatid int, text string, args ...interface{}) (msg
 	err = b.Request("sendMessage", ReqSendMessage{
 		ChatID: chatid,
 		SendMessage: SendMessage{
-			Text: fmt.Sprintf(text, args...),
+			Text: fmt.Sprintf(text, a...),
 		},
 	}, &msg)
 
