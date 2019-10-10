@@ -230,6 +230,11 @@ func (ctx *Context) SendMessage(text string, opt ...SendOptions) (int, error) {
 	return ctx.Send(ctx.NewMessage(text, opt...))
 }
 
+// SendTextMessage with formating text
+func (ctx *Context) SendTextMessage(text string, args ...interface{}) (int, error) {
+	return ctx.Send(ctx.NewMessage(fmt.Sprintf(text, args...)))
+}
+
 func (ctx *Context) EditMessage(messageid int, text string, opt ...SendOptions) error {
 	_, err := ctx.Bot.EditMessage(ctx.Chat.ID, messageid, ctx.NewMessage(text, opt...))
 	return err
