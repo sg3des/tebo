@@ -204,6 +204,20 @@ func (b *Bot) SendMessage(chatid int, smsg *SendMessage) (msg Message, err error
 	return
 }
 
+func (b *Bot) SendTextMessage(chatid int, text string, args ...interface{}) (msg Message, err error) {
+	if len(text) == 0 {
+		return msg, errors.New("text is empty")
+	}
+
+	err = b.Request("sendMessage", ReqSendMessage{
+		ChatID: chatid,
+		SendMessage: SendMessage{
+			Text: fmt.Sprintf(text, args...),
+		},
+	}, &msg)
+	return
+}
+
 type ReqSendPhoto struct {
 	ChatID  int    `json:"chat_id" structs:"chat_id"`
 	Caption string `json:"caption,omitempty" structs:"caption"`
