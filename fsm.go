@@ -103,28 +103,17 @@ func (fsm *FSM) handle(ctx *Context) (err error) {
 		return nil
 	}
 
-	var msg Message
-	if ctx.chat.lastMessageIsBot {
-		msg, err = ctx.Edit(ctx.chat.editMessageID, smsg)
-	} else {
-		msg, err = ctx.Send(smsg)
-	}
-	if err != nil {
-		return err
-	}
-
-	ctx.chat.setEditMessageID(msg.MessageID)
-
-	return nil
+	_, err = ctx.EditOrSend(smsg)
+	return err
 }
 
 func (fsm *FSM) initialMessage(ctx *Context) error {
-	msg, err := ctx.Send(fsm.message(ctx))
+	msgid, err := ctx.Send(fsm.message(ctx))
 	if err != nil {
 		return err
 	}
 
-	ctx.chat.setEditMessageID(msg.MessageID)
+	ctx.chat.setEditMessageID(msgid)
 
 	return nil
 }

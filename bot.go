@@ -195,27 +195,30 @@ func NewMessage(text string, opt ...SendOptions) *SendMessage {
 	return msg
 }
 
-func (b *Bot) SendMessage(chatid int, smsg *SendMessage) (msg Message, err error) {
+func (b *Bot) SendMessage(chatid int, smsg *SendMessage) (msgid int, err error) {
 	if len(smsg.Text) == 0 {
 		return
 	}
 
+	var msg Message
 	err = b.Request("sendMessage", ReqSendMessage{ChatID: chatid, SendMessage: *smsg}, &msg)
-	return
+	return msg.MessageID, err
 }
 
-func (b *Bot) SendTextMessage(chatid int, text string, args ...interface{}) (msg Message, err error) {
+func (b *Bot) SendTextMessage(chatid int, text string, args ...interface{}) (msgid int, err error) {
 	if len(text) == 0 {
-		return msg, errors.New("text is empty")
+		return 0, errors.New("text is empty")
 	}
 
+	var msg Message
 	err = b.Request("sendMessage", ReqSendMessage{
 		ChatID: chatid,
 		SendMessage: SendMessage{
 			Text: fmt.Sprintf(text, args...),
 		},
 	}, &msg)
-	return
+
+	return msg.MessageID, err
 }
 
 type ReqSendPhoto struct {
