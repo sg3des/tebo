@@ -2,10 +2,10 @@ package tebo
 
 import (
 	"fmt"
+	"strings"
 )
 
 const letters = "0123456789abcdefghijklmnopqrstuvwzyxABCDEFGHIJKLMNOPQRSTUVWZYX"
-const fsmrootid = "."
 
 type FSM struct {
 	id      string
@@ -17,16 +17,34 @@ type FSM struct {
 	root *FSM
 }
 
-func NewFSM(h HandleFunc) *FSM {
+func (b *Bot) NewFSM(h HandleFunc) *FSM {
 	fsm := &FSM{
 		handler: h,
-		id:      fsmrootid,
+		id:      fmt.Sprintf("%c.", letters[len(b.fsm)]),
 		columns: 1,
 	}
 
 	fsm.root = fsm
 
+	b.fsm = append(b.fsm, fsm)
+
 	return fsm
+}
+
+func (b *Bot) lookupFSM(id string) (*FSM, bool) {
+	if !strings.Contains(id, ".") {
+		return nil, false
+	}
+
+	rootid := strings.Split(id, ".")[0] + "."
+
+	for _, fsm := range b.fsm {
+		if fsm.id == rootid {
+			return fsm.lookupState(id)
+		}
+	}
+
+	return nil, false
 }
 
 type FSMButtonBuilder func(ctx *Context) *InlineKeyboardButton
@@ -84,6 +102,10 @@ func (fsm *FSM) newID(n int) string {
 	return fmt.Sprintf("%s%c", fsm.id, letters[n])
 }
 
+func (fsm *FSM) isRootID(id string) bool {
+	return strings.HasSuffix(id, ".")
+}
+
 func (fsm *FSM) handle(ctx *Context) (err error) {
 	ctx.chat.fsm = fsm.root
 
@@ -127,7 +149,7 @@ func (fsm *FSM) State(ctx *Context) (*FSM, bool) {
 }
 
 func (fsm *FSM) lookupState(id string) (*FSM, bool) {
-	if id == fsmrootid {
+	if fsm.isRootID(id) {
 		return fsm.root, true
 	}
 	if fsm.id == id {
@@ -144,7 +166,7 @@ func (fsm *FSM) lookupState(id string) (*FSM, bool) {
 }
 
 func (fsm *FSM) Parent() *FSM {
-	if fsm.id == fsmrootid {
+	if fsm.root == fsm {
 		return fsm
 	}
 
@@ -205,7 +227,8 @@ func (fsm *FSM) keyboard(ctx *Context) *InlineKeyboardMarkup {
 		}
 	}
 
-	if fsm.id != fsmrootid {
+	// if it is not as root add Back button
+	if !fsm.isRootID(fsm.id) {
 		keyboard.AddButton("« Back", fsm.id[:len(fsm.id)-1])
 	}
 

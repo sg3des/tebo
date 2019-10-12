@@ -28,10 +28,18 @@ func (b *Bot) newContext(u Update) *Context {
 		ctx.Message = u.CallbackQuery.Message
 	}
 
-	ctx.chat = b.Chats.Get(ctx.Message)
+	ctx.chat = b.Chats.Get(ctx.Message.Chat)
 
 	if u.CallbackQuery != nil {
+		if u.CallbackQuery.Data != "" {
+			if fsm, ok := b.lookupFSM(u.CallbackQuery.Data); ok {
+				ctx.chat.fsm = fsm.root
+			}
+		}
+
+		// if u.CallbackQuery.From.IsBot {
 		ctx.chat.setEditMessageID(u.CallbackQuery.Message.MessageID)
+		// }
 	}
 
 	return ctx

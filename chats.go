@@ -23,21 +23,21 @@ type chats struct {
 	names sync.Map
 }
 
-func (c *chats) Get(msg Message) *chat {
-	if msg.Chat.ID == 0 {
-		log.Criticalf("message chat id is 0: %+v", msg)
+func (c *chats) Get(tc Chat) *chat {
+	if tc.ID == 0 {
+		log.Criticalf("message chat id is 0: %+v", tc)
 	}
-	if ch, ok := c.chats.Load(msg.Chat.ID); ok {
+	if ch, ok := c.chats.Load(tc.ID); ok {
 		return ch.(*chat)
 	}
 
 	ch := &chat{
-		ID:       msg.Chat.ID,
-		Username: msg.Chat.Username,
+		ID:       tc.ID,
+		Username: tc.Username,
 	}
 
-	c.chats.Store(msg.Chat.ID, ch)
-	c.names.Store(msg.Chat.Username, ch)
+	c.chats.Store(tc.ID, ch)
+	c.names.Store(tc.Username, ch)
 
 	return ch
 }

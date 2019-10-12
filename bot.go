@@ -38,6 +38,7 @@ type Bot struct {
 	updatesHandlers []UpdatesFunc
 
 	Chats *chats
+	fsm   []*FSM
 
 	// expectContext chan *Context
 	// expectCancel  chan bool
