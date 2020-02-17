@@ -108,11 +108,18 @@ func (b *Bot) Request(method string, payload, v interface{}) error {
 	return json.Unmarshal(r.Result, &v)
 }
 
-func (b *Bot) FileRequest(method string, file io.Reader, payload interface{}, v interface{}) error {
+type FormFile struct {
+	field string
+
+	Name string
+	io.Reader
+}
+
+func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v interface{}) error {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 
-	part, _ := w.CreateFormFile("photo", "image.png")
+	part, _ := w.CreateFormFile(file.field, file.Name)
 	io.Copy(part, file)
 
 	if payload != nil {
@@ -235,7 +242,7 @@ type ReqSendPhoto struct {
 	// ...
 }
 
-func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string, opt ...SendOptions) error {
+func (b *Bot) SendPhoto(chatid int, photo FormFile, caption string, opt ...SendOptions) error {
 	req := ReqSendPhoto{
 		ChatID:  chatid,
 		Caption: caption,
@@ -243,10 +250,11 @@ func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string, opt ...Send
 	if len(opt) > 0 {
 		req.SendOptions = opt[0]
 	}
+	photo.field = "photo"
 	return b.FileRequest("sendPhoto", photo, req, nil)
 }
 
-func (b *Bot) SendDocument(chatid int, document io.Reader, caption string, opt ...SendOptions) error {
+func (b *Bot) SendDocument(chatid int, document FormFile, caption string, opt ...SendOptions) error {
 	req := ReqSendPhoto{
 		ChatID:  chatid,
 		Caption: caption,
@@ -254,6 +262,7 @@ func (b *Bot) SendDocument(chatid int, document io.Reader, caption string, opt .
 	if len(opt) > 0 {
 		req.SendOptions = opt[0]
 	}
+	document.field = "document"
 	return b.FileRequest("sendDocument", document, req, nil)
 }
 
