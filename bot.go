@@ -1,17 +1,16 @@
 package tebo
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 
-	"github.com/fatih/structs"
+	"github.com/gorilla/schema"
 	"github.com/imroc/req"
 	"github.com/op/go-logging"
 )
@@ -116,35 +115,23 @@ type FormFile struct {
 }
 
 func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v interface{}) error {
-	var body bytes.Buffer
-	w := multipart.NewWriter(&body)
+	q := make(url.Values)
+	e := schema.NewEncoder()
+	e.SetAliasTag("json")
+	e.Encode(payload, q)
 
-	part, _ := w.CreateFormFile(file.field, file.Name)
-	io.Copy(part, file)
-
-	if payload != nil {
-		for key, val := range structs.Map(payload) {
-			w.WriteField(key, fmt.Sprintf("%v", val))
-		}
-	}
-	w.Close()
-
-	resp, err := http.Post(b.addr+method, w.FormDataContentType(), &body)
+	resp, err := req.Post(b.addr+method, req.FileUpload{
+		FieldName: file.field,
+		File:      ioutil.NopCloser(file),
+		FileName:  file.Name,
+	}, q)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		data, _ := ioutil.ReadAll(resp.Body)
-		log.Error(string(data))
-
-		return errors.New(resp.Status)
-	}
 
 	var r Response
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return fmt.Errorf("response decode failed: %v", err)
+	if err := resp.ToJSON(&r); err != nil || !r.OK {
+		return errors.New(resp.String())
 	}
 
 	return json.Unmarshal(r.Result, &v)
@@ -180,11 +167,11 @@ const (
 )
 
 type SendOptions struct {
-	ParseMode string `json:"parse_mode,omitempty"`
+	ParseMode string `json:"parse_mode,omitempty" structs:"parse_mode,omitempty"`
 	// disable_web_page_preview
-	DisableNotification bool `json:"disable_notification,omitempty"`
+	DisableNotification bool `json:"disable_notification,omitempty"  structs:"disable_notification,omitempty"`
 	// reply_to_message_id
-	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
+	ReplyMarkup interface{} `json:"reply_markup,omitempty"  structs:"reply_markup,omitempty"`
 }
 
 // type ReplyMarkup struct {
@@ -237,8 +224,8 @@ func (b *Bot) SendTextMessage(chatid int, text string, a ...interface{}) (msgid 
 
 type ReqSendPhoto struct {
 	ChatID      int    `json:"chat_id" structs:"chat_id"`
-	Caption     string `json:"caption,omitempty"`
-	SendOptions `json:",omitempty"`
+	Caption     string `json:"caption,omitempty" structs:"caption,omitempty"`
+	SendOptions `json:",omitempty" structs:",flatten"`
 	// ...
 }
 
