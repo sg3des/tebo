@@ -175,7 +175,7 @@ const (
 type SendOptions struct {
 	ParseMode string `json:"parse_mode,omitempty"`
 	// disable_web_page_preview
-	// disable_notification
+	DisableNotification bool `json:"disable_notification,omitempty"`
 	// reply_to_message_id
 	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
 }
@@ -222,14 +222,39 @@ func (b *Bot) SendTextMessage(chatid int, text string, a ...interface{}) (msgid 
 	return msg.MessageID, err
 }
 
+// type SendOptions struct {
+// 	Caption             string `json:"caption,omitempty" structs:"caption"`
+// 	DisableNotification bool   `json:"disable_notification,omitempty" structs:"disable_notification"`
+// 	ParseMode           string `json:"parse_mode,omitempty" structs:"disable_notification"`
+// }
+
 type ReqSendPhoto struct {
-	ChatID  int    `json:"chat_id" structs:"chat_id"`
-	Caption string `json:"caption,omitempty" structs:"caption"`
+	ChatID      int    `json:"chat_id" structs:"chat_id"`
+	Caption     string `json:"caption,omitempty"`
+	SendOptions `json:",omitempty"`
 	// ...
 }
 
-func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string) error {
-	return b.FileRequest("sendPhoto", photo, ReqSendPhoto{ChatID: chatid, Caption: caption}, nil)
+func (b *Bot) SendPhoto(chatid int, photo io.Reader, caption string, opt ...SendOptions) error {
+	req := ReqSendPhoto{
+		ChatID:  chatid,
+		Caption: caption,
+	}
+	if len(opt) > 0 {
+		req.SendOptions = opt[0]
+	}
+	return b.FileRequest("sendPhoto", photo, req, nil)
+}
+
+func (b *Bot) SendDocument(chatid int, document io.Reader, caption string, opt ...SendOptions) error {
+	req := ReqSendPhoto{
+		ChatID:  chatid,
+		Caption: caption,
+	}
+	if len(opt) > 0 {
+		req.SendOptions = opt[0]
+	}
+	return b.FileRequest("sendDocument", photo, req, nil)
 }
 
 //

@@ -45,6 +45,16 @@ func (b *Bot) newContext(u Update) *Context {
 	return ctx
 }
 
+func (b *Bot) ContextFromMessage(msg Message) *Context {
+	ctx := &Context{
+		Bot:     b,
+		Message: msg,
+		chat:    b.Chats.Get(msg.Chat),
+	}
+
+	return ctx
+}
+
 // Send prepared message to the current chat
 func (ctx *Context) Send(smsg *SendMessage) (int, error) {
 	msgid, err := ctx.Bot.SendMessage(ctx.Chat.ID, smsg)
