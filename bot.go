@@ -254,7 +254,7 @@ func (b *Bot) SendDocument(chatid int, document io.Reader, caption string, opt .
 	if len(opt) > 0 {
 		req.SendOptions = opt[0]
 	}
-	return b.FileRequest("sendDocument", photo, req, nil)
+	return b.FileRequest("sendDocument", document, req, nil)
 }
 
 //
