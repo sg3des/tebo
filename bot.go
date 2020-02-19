@@ -88,6 +88,7 @@ func (b *Bot) Request(method string, payload, v interface{}) error {
 	if err != nil {
 		return err
 	}
+	// log.Debug(resp.Dump())
 
 	if r := resp.Response(); r.StatusCode >= 400 {
 		err := &ErrorResponse{Status: r.Status}
@@ -125,6 +126,7 @@ func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v i
 		File:      ioutil.NopCloser(file),
 		FileName:  file.Name,
 	}, q)
+	// log.Debug(resp.Dump())
 	if err != nil {
 		return err
 	}
@@ -152,13 +154,13 @@ func (b *Bot) GetUpdates(offset int) (updates []Update, err error) {
 }
 
 type ReqSendMessage struct {
-	ChatID int `json:"chat_id"`
-	SendMessage
+	ChatID      int `json:"chat_id"`
+	SendMessage `structs:",flatten`
 }
 
 type SendMessage struct {
 	Text        string `json:"text"`
-	SendOptions `json:",omitempty"`
+	SendOptions `json:",omitempty" structs:",flatten`
 }
 
 const (
@@ -229,7 +231,7 @@ type ReqSendPhoto struct {
 	// ...
 }
 
-func (b *Bot) SendPhoto(chatid int, photo FormFile, caption string, opt ...SendOptions) error {
+func (b *Bot) SendPhoto(chatid int, photo FormFile, caption string, opt ...SendOptions) (msgid int, err error) {
 	req := ReqSendPhoto{
 		ChatID:  chatid,
 		Caption: caption,
@@ -238,10 +240,13 @@ func (b *Bot) SendPhoto(chatid int, photo FormFile, caption string, opt ...SendO
 		req.SendOptions = opt[0]
 	}
 	photo.field = "photo"
-	return b.FileRequest("sendPhoto", photo, req, nil)
+
+	var msg Message
+	err = b.FileRequest("sendPhoto", photo, req, &msg)
+	return msg.MessageID, err
 }
 
-func (b *Bot) SendDocument(chatid int, document FormFile, caption string, opt ...SendOptions) error {
+func (b *Bot) SendDocument(chatid int, document FormFile, caption string, opt ...SendOptions) (msgid int, err error) {
 	req := ReqSendPhoto{
 		ChatID:  chatid,
 		Caption: caption,
@@ -250,7 +255,10 @@ func (b *Bot) SendDocument(chatid int, document FormFile, caption string, opt ..
 		req.SendOptions = opt[0]
 	}
 	document.field = "document"
-	return b.FileRequest("sendDocument", document, req, nil)
+
+	var msg Message
+	err = b.FileRequest("sendDocument", document, req, nil)
+	return msg.MessageID, err
 }
 
 //
@@ -270,6 +278,34 @@ func (b *Bot) EditMessage(chatid int, messageid int, smsg *SendMessage) (msg Mes
 
 	reqmsg := ReqEditMessage{ChatID: chatid, MessageID: messageid, SendMessage: *smsg}
 	err = b.Request("editMessageText", reqmsg, &msg)
+	return
+}
+
+type ReqEditMessageMedia struct {
+	ChatID      int    `json:"chat_id"`
+	MessageID   int    `json:"message_id"`
+	Media       string `json:"media"`
+	ReplyMarkup string `json:"reply_markup,omitempty"`
+}
+
+func (b *Bot) EditMessageMedia(chatid, msgid int, file FormFile, caption string, keys ...*InlineKeyboardMarkup) (msg Message, err error) {
+	file.field = "photo"
+
+	payload := ReqEditMessageMedia{
+		ChatID:    chatid,
+		MessageID: msgid,
+		Media: InputMedia{
+			Caption: caption,
+			Type:    "photo",
+			Media:   "attach://" + file.field,
+		}.ToJSON(),
+	}
+
+	if len(keys) > 0 {
+		payload.ReplyMarkup = keys[0].ToJSON()
+	}
+
+	err = b.FileRequest("editMessageMedia", file, payload, &msg)
 	return
 }
 

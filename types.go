@@ -164,6 +164,11 @@ type InlineKeyboardMarkup struct {
 	InlineKeyboard [][]InlineKeyboardButton `json:"inline_keyboard"`
 }
 
+func (keys InlineKeyboardMarkup) ToJSON() string {
+	data, _ := json.Marshal(keys)
+	return string(data)
+}
+
 type InlineKeyboardButton struct {
 	Text         string    `json:"text"`
 	URL          string    `json:"url,omitempty"`
@@ -207,4 +212,20 @@ type ReplyKeyboardRemove struct {
 type ForceReply struct {
 	ForceReply bool `json:"force_reply"`
 	Selective  bool `json:"selective,omitempty"`
+}
+
+//
+// InputMedia
+//
+
+type InputMedia struct {
+	Type      string `json:"type"`
+	Media     string `json:"media"`
+	Caption   string `json:"caption,omitempty"`
+	ParseMode string `json:"parse_mode,omitempty"`
+}
+
+func (media InputMedia) ToJSON() string {
+	data, _ := json.Marshal(media)
+	return string(data)
 }
