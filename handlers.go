@@ -36,7 +36,7 @@ func (b *Bot) Handle(cmd string, f HandleFunc, mid ...MiddlewareFunc) error {
 }
 
 func (b *Bot) Start() {
-	for {
+	for !b.closed {
 		updates, err := b.loadUpdates()
 		if err != nil {
 			log.Error(err)

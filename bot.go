@@ -39,6 +39,8 @@ type Bot struct {
 	Chats *chats
 	fsm   []*FSM
 
+	closed bool
+
 	// expectContext chan *Context
 	// expectCancel  chan bool
 }
@@ -60,6 +62,10 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 	}
 
 	return
+}
+
+func (b *Bot) Close() {
+	b.closed = true
 }
 
 func (b *Bot) LookupChatID(name string) (int, bool) {
