@@ -30,9 +30,9 @@ func (b *Bot) readHistory(filename string) (err error) {
 			continue
 		}
 
-		if u.UpdateID > b.UpdateID {
-			b.UpdateID = u.UpdateID
-		}
+		// if u.UpdateID > b.UpdateID {
+		b.UpdateID = u.UpdateID
+		// }
 
 		b.addChat(u)
 	}
@@ -41,9 +41,10 @@ func (b *Bot) readHistory(filename string) (err error) {
 }
 
 func (b *Bot) updateHistory(updates []Update) error {
+	var maxUpdateID int
 	for _, u := range updates {
-		if u.UpdateID > b.UpdateID {
-			b.UpdateID = u.UpdateID
+		if u.UpdateID > maxUpdateID {
+			maxUpdateID = u.UpdateID
 		}
 
 		b.addChat(u)
@@ -58,6 +59,10 @@ func (b *Bot) updateHistory(updates []Update) error {
 		if err != nil {
 			return fmt.Errorf("failed write to history: %v", err)
 		}
+	}
+
+	if maxUpdateID > 0 {
+		b.UpdateID = maxUpdateID
 	}
 
 	return nil

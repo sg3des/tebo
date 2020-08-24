@@ -3,7 +3,6 @@ package tebo
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 
 var (
 	token    = ""
-	chatid   = 278037961
+	chatid   = ""
 	username = ""
 
 	bot *Bot
@@ -27,11 +26,9 @@ func init() {
 
 	token = os.Getenv("TEST_TOKEN")
 	username = os.Getenv("TEST_USERNAME")
-	if _chatid := os.Getenv("TEST_CHATID"); _chatid != "" {
-		chatid, _ = strconv.Atoi(_chatid)
-	}
+	chatid = os.Getenv("TEST_CHATID")
 
-	if token == "" || chatid == 0 {
+	if token == "" || chatid == "" {
 		log.Warning("SKIP tebo tests, env variable `TEST_TOKEN` or `TEST_CHATID` not specified")
 		return
 	}
@@ -47,7 +44,7 @@ func init() {
 }
 
 func TestReplyKeyboard(t *testing.T) {
-	if token == "" || chatid == 0 {
+	if token == "" || chatid == "" {
 		t.SkipNow()
 	}
 
@@ -73,13 +70,15 @@ func TestReplyKeyboard(t *testing.T) {
 		},
 	}
 
-	if err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
+
+
+	_, err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestInlineKeyboard(t *testing.T) {
-	if token == "" || chatid == 0 {
+	if token == "" || chatid == "" {
 		t.SkipNow()
 	}
 
@@ -158,13 +157,17 @@ func TestLookupChatID(t *testing.T) {
 }
 
 func TestSendMessage(t *testing.T) {
-	if token == "" || chatid == 0 {
+	if token == "" {
 		t.SkipNow()
 	}
 
-	if err := bot.SendMessage(chatid, "Hello"); err != nil {
+	msgid, err := bot.SendMessage(chatid, "Hello")
+	if err != nil {
 		t.Error(err)
+		t.FailNow()
 	}
+
+	bot.DeleteMessage(chatid, msgid)
 }
 
 func TestSendPhoto(t *testing.T) {

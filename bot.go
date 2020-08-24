@@ -65,6 +65,9 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 }
 
 func (b *Bot) Close() {
+	if b == nil {
+		return
+	}
 	b.closed = true
 }
 
@@ -222,6 +225,13 @@ func (b *Bot) SendTextMessage(chatid int, text string, a ...interface{}) (msgid 
 	}, &msg)
 
 	return msg.MessageID, err
+}
+
+func (b *Bot) DeleteMessage(chatid int, messageid int) error {
+	return b.Request("deleteMessage", map[string]interface{}{
+		"chat_id":    chatid,
+		"message_id": messageid,
+	}, nil)
 }
 
 // type SendOptions struct {

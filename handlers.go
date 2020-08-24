@@ -91,7 +91,7 @@ func (b *Bot) route(u Update) {
 	if ctx.CallbackQuery == nil {
 		// lookup and execute command handler
 		if err := b.ExecuteHandler(ctx); err != nil {
-			log.Error("failed to send response:", err)
+			log.Errorf("failed to send response to the group: %+v: %v", ctx.chat, err)
 		}
 	}
 }
@@ -108,7 +108,8 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	// lookup a handler by the received command
 	h, ok := b.lookupHandler(ctx.Message.Text)
 	if !ok {
-		return fmt.Errorf("command %s, handler not found", ctx.Text)
+		return nil
+		// return fmt.Errorf("command %s, handler not found", ctx.Text)
 	}
 
 	f := h.callback
