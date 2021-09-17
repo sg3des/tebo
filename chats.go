@@ -31,9 +31,14 @@ func (c *chats) Get(tc Chat) *chat {
 		return ch.(*chat)
 	}
 
+	username := tc.Username
+	if tc.Username == "" && tc.Title != "" {
+		username = tc.Title
+	}
+
 	ch := &chat{
 		ID:       tc.ID,
-		Username: tc.Username,
+		Username: username,
 	}
 
 	c.chats.Store(tc.ID, ch)

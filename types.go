@@ -165,6 +165,10 @@ type InlineKeyboardMarkup struct {
 }
 
 func (keys InlineKeyboardMarkup) ToJSON() string {
+	if keys.InlineKeyboard == nil {
+		keys.InlineKeyboard = make([][]InlineKeyboardButton, 0)
+	}
+
 	data, _ := json.Marshal(keys)
 	return string(data)
 }

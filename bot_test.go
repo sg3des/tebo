@@ -70,9 +70,7 @@ func TestReplyKeyboard(t *testing.T) {
 		},
 	}
 
-
-
-	_, err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
+	if _, err := bot.SendMessage(chatid, "keyboard", opt); err != nil {
 		t.Error(err)
 	}
 }

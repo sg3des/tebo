@@ -49,6 +49,8 @@ func (b *Bot) updateHistory(updates []Update) error {
 
 		b.addChat(u)
 
+		// log.Debugf("%+v", u)
+
 		line, err := msgpack.Marshal(u)
 		if err != nil {
 			return fmt.Errorf("encode message failed: %v", err)

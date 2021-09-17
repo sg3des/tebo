@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-var PollInterval = 30 * time.Second
+var PollInterval = 20 * time.Second
+var ShortPollInterval = 5 * time.Second
 
 type HandleFunc func(*Context) *SendMessage
 
@@ -36,6 +37,8 @@ func (b *Bot) Handle(cmd string, f HandleFunc, mid ...MiddlewareFunc) error {
 }
 
 func (b *Bot) Start() {
+	t := time.Now()
+
 	for !b.closed {
 		updates, err := b.loadUpdates()
 		if err != nil {
@@ -47,7 +50,16 @@ func (b *Bot) Start() {
 			}
 		}
 
-		time.Sleep(PollInterval)
+		if len(updates) > 0 {
+			t = time.Now()
+		}
+
+		if time.Since(t) > time.Minute {
+			time.Sleep(PollInterval)
+		} else {
+			time.Sleep(ShortPollInterval)
+		}
+
 	}
 }
 
@@ -102,12 +114,14 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = fmt.Errorf("%s\n%s", e, debug.Stack())
+			log.Error(err)
 		}
 	}()
 
 	// lookup a handler by the received command
 	h, ok := b.lookupHandler(ctx.Message.Text)
 	if !ok {
+		log.Error(fmt.Errorf("command %s, handler not found", ctx.Text))
 		return nil
 		// return fmt.Errorf("command %s, handler not found", ctx.Text)
 	}
