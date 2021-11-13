@@ -18,7 +18,7 @@ import (
 var (
 	addr     = "https://api.telegram.org/bot%s/"
 	fileaddr = "https://api.telegram.org/file/bot%s/"
-	log      = logging.MustGetLogger("TELEGRAM_BOT")
+	log      = logging.MustGetLogger("TEBO")
 )
 
 type Bot struct {
@@ -57,6 +57,8 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 		return b, fmt.Errorf("connection failed: %v", err)
 	}
 
+	log = logging.MustGetLogger("TEBO:" + b.Username)
+
 	if err = b.readHistory(historyfile); err != nil {
 		return b, fmt.Errorf("history initialize failed: %v", err)
 	}
@@ -68,6 +70,7 @@ func (b *Bot) Close() {
 	if b == nil {
 		return
 	}
+
 	b.closed = true
 }
 

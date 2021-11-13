@@ -121,7 +121,7 @@ func (b *Bot) ExecuteHandler(ctx *Context) (err error) {
 	// lookup a handler by the received command
 	h, ok := b.lookupHandler(ctx.Message.Text)
 	if !ok {
-		log.Error(fmt.Errorf("command %s, handler not found", ctx.Text))
+		log.Errorf("command %s, handler not found", ctx.Text)
 		return nil
 		// return fmt.Errorf("command %s, handler not found", ctx.Text)
 	}
