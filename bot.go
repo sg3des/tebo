@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/gorilla/schema"
 	"github.com/imroc/req"
@@ -19,6 +19,8 @@ var (
 	addr     = "https://api.telegram.org/bot%s/"
 	fileaddr = "https://api.telegram.org/file/bot%s/"
 	log      = logging.MustGetLogger("TEBO")
+
+	Timeout = 30 * time.Second
 )
 
 type Bot struct {
@@ -96,11 +98,11 @@ func (e *ErrorResponse) Error() string {
 }
 
 func (b *Bot) Request(method string, payload, v interface{}) error {
-	resp, err := req.Post(b.addr+method, req.BodyJSON(payload))
+	client := &http.Client{Timeout: Timeout}
+	resp, err := req.Post(b.addr+method, req.BodyJSON(payload), client)
 	if err != nil {
 		return err
 	}
-	// log.Debug(resp.Dump())
 
 	if r := resp.Response(); r.StatusCode >= 400 {
 		err := &ErrorResponse{Status: r.Status}
@@ -133,11 +135,12 @@ func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v i
 	e.SetAliasTag("json")
 	e.Encode(payload, q)
 
+	client := &http.Client{Timeout: Timeout}
 	resp, err := req.Post(b.addr+method, req.FileUpload{
 		FieldName: file.field,
-		File:      ioutil.NopCloser(file),
+		File:      io.NopCloser(file),
 		FileName:  file.Name,
-	}, q)
+	}, q, client)
 	// log.Debug(resp.Dump())
 	if err != nil {
 		return err
@@ -424,4 +427,29 @@ func (k *InlineKeyboardConstuctor) GetButtonText(data string) (string, bool) {
 	}
 
 	return "", false
+}
+
+//
+//
+//
+
+type Command struct {
+	Command     string `json:"command"`
+	Description string `json:"description"`
+}
+
+func (b *Bot) SetMyCommands(commands []Command) error {
+	var resp bool
+	if err := b.Request("setMyCommands", commands, &resp); err != nil {
+		return err
+	}
+
+	log.Debug(resp)
+
+	return nil
+}
+
+func (b *Bot) GetMyCommands() (commands []Command, err error) {
+	err = b.Request("getMyCommands", nil, &commands)
+	return
 }
