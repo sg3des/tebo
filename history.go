@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func (b *Bot) addChat(u Update) {
