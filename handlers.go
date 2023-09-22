@@ -42,7 +42,7 @@ func (b *Bot) Start() {
 	for !b.closed {
 		updates, err := b.loadUpdates()
 		if err != nil {
-			log.Error(err)
+			log.Warning(err)
 		} else {
 			// try to lookup apporpriate handler for this update
 			for _, u := range updates {
