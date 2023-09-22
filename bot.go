@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/schema"
-	"github.com/imroc/req"
+	"github.com/imroc/req/v3"
 	"github.com/op/go-logging"
 )
 
@@ -20,7 +20,8 @@ var (
 	fileaddr = "https://api.telegram.org/file/bot%s/"
 	log      = logging.MustGetLogger("TEBO")
 
-	Timeout = 30 * time.Second
+	// Timeout in seconds
+	Timeout = 120
 )
 
 type Bot struct {
@@ -29,7 +30,6 @@ type Bot struct {
 	addr     string
 	fileaddr string
 
-	// Chats    []Chat
 	UpdateID int
 
 	historyFile *os.File
@@ -42,9 +42,6 @@ type Bot struct {
 	fsm   []*FSM
 
 	closed bool
-
-	// expectContext chan *Context
-	// expectCancel  chan bool
 }
 
 func NewBot(token, historyfile string) (b *Bot, err error) {
@@ -97,17 +94,15 @@ func (e *ErrorResponse) Error() string {
 	return e.Description
 }
 
-func (b *Bot) Request(method string, payload, v interface{}) error {
-	client := &http.Client{Timeout: Timeout}
-	resp, err := req.Post(b.addr+method, req.BodyJSON(payload), client)
-	if err != nil {
-		return err
-	}
+func (b *Bot) req() *req.Request {
+	return req.C().SetTimeout(time.Duration(Timeout) * time.Second).R()
+}
 
-	if r := resp.Response(); r.StatusCode >= 400 {
-		err := &ErrorResponse{Status: r.Status}
-		resp.ToJSON(err)
-		return err
+func (b *Bot) handleResp(resp *req.Response, v interface{}) (err error) {
+	if resp.IsErrorState() {
+		err = &ErrorResponse{Status: resp.Status}
+		json.NewDecoder(resp.Body).Decode(err)
+		return
 	}
 
 	if v == nil {
@@ -115,11 +110,22 @@ func (b *Bot) Request(method string, payload, v interface{}) error {
 	}
 
 	var r Response
-	if err := resp.ToJSON(&r); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
 		return err
 	}
 
 	return json.Unmarshal(r.Result, &v)
+}
+
+func (b *Bot) Request(method string, payload, v interface{}) (err error) {
+	resp, err := b.req().
+		SetBodyJsonMarshal(payload).
+		Post(b.addr + method)
+	if err != nil {
+		return err
+	}
+
+	return b.handleResp(resp, v)
 }
 
 type FormFile struct {
@@ -135,23 +141,15 @@ func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v i
 	e.SetAliasTag("json")
 	e.Encode(payload, q)
 
-	client := &http.Client{Timeout: Timeout}
-	resp, err := req.Post(b.addr+method, req.FileUpload{
-		FieldName: file.field,
-		File:      io.NopCloser(file),
-		FileName:  file.Name,
-	}, q, client)
-	// log.Debug(resp.Dump())
+	resp, err := b.req().
+		SetQueryString(q.Encode()).
+		SetFileReader(file.field, file.Name, file).
+		Post(b.addr + method)
 	if err != nil {
 		return err
 	}
 
-	var r Response
-	if err := resp.ToJSON(&r); err != nil || !r.OK {
-		return errors.New(resp.String())
-	}
-
-	return json.Unmarshal(r.Result, &v)
+	return b.handleResp(resp, v)
 }
 
 func (b *Bot) GetMe() (me User, err error) {
@@ -160,11 +158,12 @@ func (b *Bot) GetMe() (me User, err error) {
 }
 
 type ReqUpdates struct {
-	Offset int `json:"offset"`
+	Offset  int `json:"offset"`
+	Timeout int `json:"timeout"`
 }
 
 func (b *Bot) GetUpdates(offset int) (updates []Update, err error) {
-	err = b.Request("getUpdates", ReqUpdates{Offset: offset}, &updates)
+	err = b.Request("getUpdates", ReqUpdates{Offset: offset, Timeout: Timeout / 2}, &updates)
 	return
 }
 
