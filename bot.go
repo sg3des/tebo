@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
-	"github.com/gorilla/schema"
 	"github.com/imroc/req/v3"
+	"github.com/mitchellh/mapstructure"
 	"github.com/op/go-logging"
 )
 
@@ -143,13 +142,15 @@ type FormFile struct {
 }
 
 func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v interface{}) error {
-	q := make(url.Values)
-	e := schema.NewEncoder()
-	e.SetAliasTag("json")
-	e.Encode(payload, q)
+	q, err := b.encodePayload(payload)
+	if err != nil {
+		return fmt.Errorf("faield to encode payload: %v", err)
+	}
+
+	log.Debug(q)
 
 	resp, err := b.req().
-		SetQueryString(q.Encode()).
+		SetQueryParamsAnyType(q).
 		SetFileReader(file.field, file.Name, file).
 		SetContext(b.ctx).
 		Post(b.addr + method)
@@ -158,6 +159,21 @@ func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v i
 	}
 
 	return b.handleResp(resp, v)
+}
+
+func (b *Bot) encodePayload(payload interface{}) (q map[string]interface{}, err error) {
+	q = make(map[string]interface{})
+
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &q,
+	})
+	if err != nil {
+		return q, err
+	}
+
+	err = d.Decode(payload)
+	return
 }
 
 func (b *Bot) GetMe() (me User, err error) {
@@ -177,12 +193,12 @@ func (b *Bot) GetUpdates(offset int) (updates []Update, err error) {
 
 type ReqSendMessage struct {
 	ChatID      int `json:"chat_id"`
-	SendMessage `structs:",flatten`
+	SendMessage `json:",omitempty,squash"`
 }
 
 type SendMessage struct {
 	Text        string `json:"text"`
-	SendOptions `json:",omitempty" structs:",flatten`
+	SendOptions `json:",omitempty,squash"`
 }
 
 const (
@@ -191,11 +207,11 @@ const (
 )
 
 type SendOptions struct {
-	ParseMode string `json:"parse_mode,omitempty" structs:"parse_mode,omitempty"`
+	ParseMode string `json:"parse_mode,omitempty"`
 	// disable_web_page_preview
-	DisableNotification bool `json:"disable_notification,omitempty"  structs:"disable_notification,omitempty"`
+	DisableNotification bool `json:"disable_notification,omitempty"`
 	// reply_to_message_id
-	ReplyMarkup interface{} `json:"reply_markup,omitempty"  structs:"reply_markup,omitempty"`
+	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
 }
 
 // type ReplyMarkup struct {
@@ -247,16 +263,10 @@ func (b *Bot) DeleteMessage(chatid int, messageid int) error {
 	}, nil)
 }
 
-// type SendOptions struct {
-// 	Caption             string `json:"caption,omitempty" structs:"caption"`
-// 	DisableNotification bool   `json:"disable_notification,omitempty" structs:"disable_notification"`
-// 	ParseMode           string `json:"parse_mode,omitempty" structs:"disable_notification"`
-// }
-
 type ReqSendPhoto struct {
-	ChatID      int    `json:"chat_id" structs:"chat_id"`
-	Caption     string `json:"caption,omitempty" structs:"caption,omitempty"`
-	SendOptions `json:",omitempty" structs:",flatten"`
+	ChatID      int    `json:"chat_id"`
+	Caption     string `json:"caption,omitempty"`
+	SendOptions `json:",omitempty,squash"`
 	// ...
 }
 
