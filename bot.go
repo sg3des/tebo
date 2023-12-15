@@ -1,6 +1,7 @@
 package tebo
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,8 +39,10 @@ type Bot struct {
 	middlewares     []MiddlewareFunc
 	updatesHandlers []UpdatesFunc
 
-	Chats *chats
-	fsm   []*FSM
+	Chats  *chats
+	fsm    []*FSM
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	closed bool
 }
@@ -50,6 +53,8 @@ func NewBot(token, historyfile string) (b *Bot, err error) {
 		fileaddr: fmt.Sprintf(fileaddr, token),
 		Chats:    new(chats),
 	}
+
+	b.ctx, b.cancel = context.WithCancel(context.Background())
 
 	b.User, err = b.GetMe()
 	if err != nil {
@@ -71,6 +76,7 @@ func (b *Bot) Close() {
 	}
 
 	b.closed = true
+	b.cancel()
 }
 
 func (b *Bot) LookupChatID(name string) (int, bool) {
@@ -120,6 +126,7 @@ func (b *Bot) handleResp(resp *req.Response, v interface{}) (err error) {
 func (b *Bot) Request(method string, payload, v interface{}) (err error) {
 	resp, err := b.req().
 		SetBodyJsonMarshal(payload).
+		SetContext(b.ctx).
 		Post(b.addr + method)
 	if err != nil {
 		return err
@@ -144,6 +151,7 @@ func (b *Bot) FileRequest(method string, file FormFile, payload interface{}, v i
 	resp, err := b.req().
 		SetQueryString(q.Encode()).
 		SetFileReader(file.field, file.Name, file).
+		SetContext(b.ctx).
 		Post(b.addr + method)
 	if err != nil {
 		return err
@@ -442,8 +450,6 @@ func (b *Bot) SetMyCommands(commands []Command) error {
 	if err := b.Request("setMyCommands", commands, &resp); err != nil {
 		return err
 	}
-
-	log.Debug(resp)
 
 	return nil
 }

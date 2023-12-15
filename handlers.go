@@ -1,6 +1,8 @@
 package tebo
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"runtime/debug"
@@ -42,7 +44,9 @@ func (b *Bot) Start() {
 	for !b.closed {
 		updates, err := b.loadUpdates()
 		if err != nil {
-			log.Warning(err)
+			if !errors.Is(err, context.Canceled) {
+				log.Warning(err)
+			}
 		} else {
 			// try to lookup apporpriate handler for this update
 			for _, u := range updates {
